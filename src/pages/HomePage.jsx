@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 const RED_FLAGS = [
   {
@@ -41,7 +41,6 @@ const RED_FLAGS = [
 
 const T = {
   page: {
-    background: "#000509",
     minHeight: "100vh",
     color: "#e0f7fa",
     fontFamily: "'Rajdhani', sans-serif",
@@ -123,331 +122,7 @@ const T = {
   },
 };
 
-// ─── CANVAS: MATRIX RAIN ─────────────────────────────────────────────────────
-function MatrixCanvas() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const chars =
-      "01アイウエオカキクケコサシスセソタチツテトNULL PHISHGUARD XOR AES SHA256 EXPLOIT PAYLOAD THREAT DETECT VOID";
-    let W, H, drops;
-    const init = () => {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-      const cols = Math.floor(W / 12);
-      drops = Array.from({ length: cols }, () => (Math.random() * -H) / 12);
-    };
-    const draw = () => {
-      ctx.fillStyle = "rgba(0,5,9,0.048)";
-      ctx.fillRect(0, 0, W, H);
-      drops.forEach((y, i) => {
-        const char = chars[Math.floor(Math.random() * chars.length)];
-        if (y > 0) {
-          ctx.font = "bold 12px 'Share Tech Mono', monospace";
-          ctx.fillStyle =
-            i % 4 === 0 ? "#00ff9d" : i % 6 === 0 ? "#d500f9" : "#00f5ff";
-          ctx.globalAlpha = 0.85;
-          ctx.fillText(char, i * 12, y * 12);
-          for (let t = 1; t < 10; t++) {
-            ctx.globalAlpha = (1 - t / 10) * 0.4;
-            ctx.font = "11px 'Share Tech Mono', monospace";
-            ctx.fillStyle = "#00f5ff";
-            ctx.fillText(
-              chars[Math.floor(Math.random() * chars.length)],
-              i * 12,
-              (y - t) * 12,
-            );
-          }
-        }
-        ctx.globalAlpha = 1;
-        if (y * 12 > H && Math.random() > 0.972) drops[i] = 0;
-        drops[i] += 0.5 + Math.random() * 0.2;
-      });
-    };
-    init();
-    window.addEventListener("resize", init);
-    const id = setInterval(draw, 50);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener("resize", init);
-    };
-  }, []);
-  return (
-    <canvas
-      ref={ref}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        zIndex: 0,
-        pointerEvents: "none",
-        opacity: 0.045,
-      }}
-    />
-  );
-}
-
-// ─── CANVAS: PARTICLE NETWORK ────────────────────────────────────────────────
-function ParticleCanvas() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let W,
-      H,
-      particles = [];
-    let mouse = { x: -9999, y: -9999 };
-    let targetDark = { x: -9999, y: -9999 };
-    let currentDark = { x: -9999, y: -9999 };
-    const CONN = 120,
-      MDIST = 150,
-      DARK_R = 220;
-
-    const resize = () => {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-    };
-    const initP = () => {
-      resize();
-      const n = Math.floor((W * H) / 16000);
-      particles = Array.from({ length: n }, () => ({
-        x: Math.random() * W,
-        y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.4,
-        vy: (Math.random() - 0.5) * 0.4,
-        r: Math.random() * 1.6 + 0.4,
-        color:
-          Math.random() > 0.65
-            ? [255, 23, 68]
-            : Math.random() > 0.4
-              ? [0, 245, 255]
-              : Math.random() > 0.5
-                ? [0, 255, 157]
-                : [213, 0, 249],
-        pulse: Math.random() * Math.PI * 2,
-      }));
-    };
-    initP();
-
-    const onMouse = (e) => {
-      mouse.x = e.clientX;
-      mouse.y = e.clientY;
-      targetDark.x = e.clientX;
-      targetDark.y = e.clientY;
-    };
-    const onLeave = () => {
-      targetDark.x = -9999;
-      targetDark.y = -9999;
-    };
-    window.addEventListener("mousemove", onMouse);
-    window.addEventListener("mouseleave", onLeave);
-    window.addEventListener("resize", initP);
-
-    let raf;
-    const frame = () => {
-      ctx.clearRect(0, 0, W, H);
-      currentDark.x += (targetDark.x - currentDark.x) * 0.1;
-      currentDark.y += (targetDark.y - currentDark.y) * 0.1;
-      if (currentDark.x > -500) {
-        const grad = ctx.createRadialGradient(
-          currentDark.x,
-          currentDark.y,
-          0,
-          currentDark.x,
-          currentDark.y,
-          DARK_R,
-        );
-        grad.addColorStop(0, "rgba(0,0,0,0.82)");
-        grad.addColorStop(0.35, "rgba(0,0,0,0.6)");
-        grad.addColorStop(0.65, "rgba(0,0,0,0.25)");
-        grad.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
-      }
-      particles.forEach((p) => {
-        p.pulse += 0.018;
-        const mdx = mouse.x - p.x,
-          mdy = mouse.y - p.y;
-        const md = Math.sqrt(mdx * mdx + mdy * mdy);
-        if (md < MDIST) {
-          p.vx += (mdx / md) * 0.012;
-          p.vy += (mdy / md) * 0.012;
-        }
-        p.vx *= 0.985;
-        p.vy *= 0.985;
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < 0) p.x = W;
-        if (p.x > W) p.x = 0;
-        if (p.y < 0) p.y = H;
-        if (p.y > H) p.y = 0;
-      });
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const a = particles[i],
-            b = particles[j];
-          const dx = a.x - b.x,
-            dy = a.y - b.y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < CONN) {
-            const alpha = (1 - d / CONN) * 0.22;
-            const [r, g, bl] = a.color;
-            ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha})`;
-            ctx.lineWidth = 0.6;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-        const p = particles[i];
-        const mdx2 = p.x - mouse.x,
-          mdy2 = p.y - mouse.y;
-        const md2 = Math.sqrt(mdx2 * mdx2 + mdy2 * mdy2);
-        if (md2 < MDIST) {
-          const alpha = (1 - md2 / MDIST) * 0.55;
-          const [r, g, bl] = p.color;
-          ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha})`;
-          ctx.lineWidth = 0.9;
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y);
-          ctx.lineTo(mouse.x, mouse.y);
-          ctx.stroke();
-        }
-      }
-      particles.forEach((p) => {
-        const [r, g, b] = p.color;
-        const pr = p.r * (0.75 + Math.sin(p.pulse) * 0.25);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, pr, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r},${g},${b},0.8)`;
-        ctx.shadowColor = `rgba(${r},${g},${b},0.5)`;
-        ctx.shadowBlur = 7;
-        ctx.fill();
-        ctx.shadowBlur = 0;
-      });
-      if (mouse.x > -500) {
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, 6, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(0,245,255,0.9)";
-        ctx.lineWidth = 1.5;
-        ctx.shadowColor = "#00f5ff";
-        ctx.shadowBlur = 12;
-        ctx.stroke();
-        ctx.shadowBlur = 0;
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, 22, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(0,245,255,0.2)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      }
-      raf = requestAnimationFrame(frame);
-    };
-    frame();
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("mousemove", onMouse);
-      window.removeEventListener("mouseleave", onLeave);
-      window.removeEventListener("resize", initP);
-    };
-  }, []);
-  return (
-    <canvas
-      ref={ref}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        zIndex: 0,
-        pointerEvents: "none",
-        opacity: 0.9,
-      }}
-    />
-  );
-}
-
-// ─── CANVAS: HEX GRID ────────────────────────────────────────────────────────
-function HexCanvas() {
-  const ref = useRef(null);
-  useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let W,
-      H,
-      t = 0,
-      raf;
-    const resize = () => {
-      W = canvas.width = window.innerWidth;
-      H = canvas.height = window.innerHeight;
-    };
-    resize();
-    window.addEventListener("resize", resize);
-    const hex = (x, y, s, a) => {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI / 3) * i - Math.PI / 6;
-        ctx.lineTo(x + s * Math.cos(angle), y + s * Math.sin(angle));
-      }
-      ctx.closePath();
-      ctx.strokeStyle = `rgba(0,245,255,${a})`;
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
-    };
-    const draw = () => {
-      ctx.clearRect(0, 0, W, H);
-      t += 0.004;
-      const s = 42,
-        hx = s * Math.sqrt(3),
-        hy = s * 1.5;
-      const cols = Math.ceil(W / hx) + 2,
-        rows = Math.ceil(H / hy) + 2;
-      for (let r = -1; r < rows; r++) {
-        for (let c = -1; c < cols; c++) {
-          const x = c * hx + (r % 2 === 0 ? hx / 2 : 0),
-            y = r * hy;
-          const dx = (x - W / 2) / W,
-            dy = (y - H / 2) / H;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const wave = Math.abs(Math.sin(dist * 5 - t * 2));
-          const a = (0.25 + 0.75 * (1 - dist)) * wave * 0.55;
-          if (a > 0.005) hex(x, y, s - 4, a);
-        }
-      }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
-    return () => {
-      cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
-    };
-  }, []);
-  return (
-    <canvas
-      ref={ref}
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        width: "100%",
-        height: "100%",
-        zIndex: 0,
-        pointerEvents: "none",
-        opacity: 0.065,
-      }}
-    />
-  );
-}
-
 // ─── SCAN LINE ───────────────────────────────────────────────────────────────
-// Fixed: uses position relative to EmailMock container correctly
 function ScanLine() {
   const [pos, setPos] = useState(0);
   useEffect(() => {
@@ -488,11 +163,8 @@ function EmailMock() {
         boxShadow:
           "0 0 60px rgba(0,245,255,.1),0 40px 80px rgba(0,0,0,.7),inset 0 0 60px rgba(0,245,255,.02)",
         animation: "floatY 4s ease-in-out infinite",
-        // overflow hidden removed so scanline isn't clipped unexpectedly;
-        // we clip only scanline within bounds via the container
       }}
     >
-      {/* overflow clip wrapper for scanline */}
       <div
         style={{
           position: "absolute",
@@ -523,7 +195,6 @@ function EmailMock() {
         THREAT ANALYSIS
       </div>
 
-      {/* Corner brackets */}
       {[
         { top: 6, left: 6, borderWidth: "1px 0 0 1px" },
         { top: 6, right: 6, borderWidth: "1px 1px 0 0" },
@@ -639,32 +310,6 @@ function EmailMock() {
         }}
       >
         http://secure-paypal-verify.xyz/login?token=a8c...
-      </div>
-      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", position: "relative", zIndex: 4 }}>
-        {[
-          { label: "⚠ Fake Domain", cls: "red" },
-          { label: "⚠ Urgency", cls: "red" },
-          { label: "🔗 Bad URL", cls: "orange" },
-        ].map(({ label, cls }) => (
-          <span
-            key={label}
-            style={{
-              padding: "3px 9px",
-              borderRadius: 2,
-              fontSize: ".68rem",
-              fontFamily: "'Share Tech Mono',monospace",
-              background:
-                cls === "red" ? "rgba(255,23,68,.1)" : "rgba(255,109,0,.1)",
-              border:
-                cls === "red"
-                  ? "1px solid rgba(255,23,68,.35)"
-                  : "1px solid rgba(255,109,0,.35)",
-              color: cls === "red" ? "#ff1744" : "#ff6d00",
-            }}
-          >
-            {label}
-          </span>
-        ))}
       </div>
     </div>
   );
@@ -801,73 +446,6 @@ function RedFlagCard({ icon, name, desc, tip }) {
   );
 }
 
-// ─── LIGHTNING STREAKS ───────────────────────────────────────────────────────
-function LightningStreaks() {
-  const [streaks, setStreaks] = useState([]);
-
-  useEffect(() => {
-    let id = 0;
-    const spawn = () => {
-      const newId = id++;
-      const colors = [
-        "rgba(0,245,255,",
-        "rgba(0,255,157,",
-        "rgba(213,0,249,",
-        "rgba(255,23,68,",
-      ];
-      const c = colors[Math.floor(Math.random() * colors.length)];
-      const h = 80 + Math.random() * 220;
-      const streak = {
-        id: newId,
-        left: Math.random() * 100,
-        height: h,
-        color: c,
-        duration: 2.5 + Math.random() * 5,
-        delay: Math.random() * 0.5,
-      };
-      setStreaks((s) => [...s.slice(-14), streak]);
-      setTimeout(
-        () => setStreaks((s) => s.filter((x) => x.id !== newId)),
-        8000,
-      );
-    };
-    for (let i = 0; i < 8; i++) setTimeout(spawn, i * 400);
-    const interval = setInterval(() => {
-      if (Math.random() > 0.3) spawn();
-    }, 600);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 0,
-        pointerEvents: "none",
-        overflow: "hidden",
-      }}
-    >
-      {streaks.map((s) => (
-        <div
-          key={s.id}
-          style={{
-            position: "absolute",
-            left: `${s.left}%`,
-            width: 1,
-            height: s.height,
-            top: -s.height,
-            background: `linear-gradient(180deg, transparent, ${s.color}0.9), ${s.color}0.4), transparent)`,
-            boxShadow: `0 0 4px ${s.color}0.6)`,
-            borderRadius: 1,
-            animation: `streamFall ${s.duration}s ${s.delay}s linear forwards`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 // ─── STAT ITEM ───────────────────────────────────────────────────────────────
 function StatItem({ num, lbl }) {
   return (
@@ -909,7 +487,6 @@ function StatItem({ num, lbl }) {
 }
 
 // ─── STAT DIVIDER ────────────────────────────────────────────────────────────
-// Fixed: use a fixed-height div instead of alignSelf:stretch which requires flex parent height
 function StatDivider() {
   return (
     <div
@@ -923,200 +500,13 @@ function StatDivider() {
   );
 }
 
-// ─── GLOBAL STYLES ───────────────────────────────────────────────────────────
-// Fixed: Extracted into a separate component that only renders once
-function GlobalStyles() {
-  return (
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
-
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-      html { scroll-behavior: smooth; }
-
-      body {
-        background: #000509;
-        font-family: 'Rajdhani', sans-serif;
-        overflow-x: hidden;
-        cursor: crosshair;
-      }
-
-      #root, #__next {
-        position: relative;
-      }
-
-      .pg-grid-bg::before {
-        content:'';
-        position: fixed;
-        inset: 0;
-        background-image:
-          linear-gradient(rgba(0,245,255,.04) 1px,transparent 1px),
-          linear-gradient(90deg,rgba(0,245,255,.04) 1px,transparent 1px),
-          linear-gradient(rgba(0,245,255,.015) 1px,transparent 1px),
-          linear-gradient(90deg,rgba(0,245,255,.015) 1px,transparent 1px);
-        background-size: 80px 80px, 80px 80px, 20px 20px, 20px 20px;
-        pointer-events: none;
-        z-index: 0;
-      }
-
-      .pg-grid-bg::after {
-        content:'';
-        position: fixed;
-        inset: 0;
-        background:
-          radial-gradient(ellipse 80% 50% at 50% 0%,rgba(0,245,255,0.04) 0%,transparent 60%),
-          radial-gradient(ellipse 40% 40% at 100% 50%,rgba(213,0,249,0.04) 0%,transparent 60%);
-        pointer-events: none;
-        z-index: 0;
-      }
-
-      @keyframes floatY { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-14px)} }
-      @keyframes orbF   { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-40px) scale(1.08)} }
-      @keyframes pulse  { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.6)} }
-      @keyframes fuA    { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
-      @keyframes glitch {
-        0%,90%,100%{transform:none;text-shadow:0 0 20px #00f5ff}
-        92%{transform:translate(-2px,1px);text-shadow:2px 0 #ff1744,-2px 0 #00ff9d}
-        94%{transform:translate(2px,-1px);text-shadow:-2px 0 #ff1744,2px 0 #00ff9d}
-        96%{transform:translate(-1px,0);text-shadow:2px 0 #d500f9,-1px 0 #00ff9d}
-        98%{transform:translate(0,1px);text-shadow:-2px 0 #ff1744,2px 0 #00f5ff}
-      }
-      @keyframes scanlineScroll { 0%{background-position:0 0} 100%{background-position:0 100px} }
-      @keyframes blinkBorder {
-        0%,100%{border-color:rgba(255,23,68,.4);box-shadow:0 0 10px rgba(255,23,68,.15)}
-        50%{border-color:rgba(255,23,68,.85);box-shadow:0 0 22px rgba(255,23,68,.4)}
-      }
-      @keyframes streamFall {
-        0%{top:-300px;opacity:0} 10%{opacity:.7} 90%{opacity:.3} 100%{top:110vh;opacity:0}
-      }
-      @keyframes ticker { 0%{transform:translateX(100%)} 100%{transform:translateX(-100%)} }
-
-      .nav-link-item { position: relative; }
-      .nav-link-item::after {
-        content:'';position:absolute;bottom:-4px;left:0;width:0;height:1px;
-        background:#00f5ff;transition:width .3s;box-shadow:0 0 8px #00f5ff;
-      }
-      .nav-link-item:hover { color: #00f5ff !important; text-shadow: 0 0 12px rgba(0,245,255,0.6); }
-      .nav-link-item:hover::after { width:100%; }
-
-      .btn-p-hover:hover {
-        box-shadow: 0 0 35px rgba(0,245,255,.45),inset 0 0 20px rgba(0,245,255,.1) !important;
-        transform: translateY(-1px);
-      }
-
-      .ft-lk:hover { color: #00f5ff !important; }
-      .soc-btn:hover { border-color:#00f5ff !important; color:#00f5ff !important; box-shadow:0 0 15px rgba(0,245,255,.2); }
-
-      /* ── RESPONSIVE ── */
-      @media (max-width:1100px) {
-        .nav-cards-grid { grid-template-columns: repeat(2,1fr) !important; }
-        .stats-strip-grid { grid-template-columns: repeat(3,1fr) !important; }
-        .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 40px !important; }
-      }
-
-      @media (max-width:900px) {
-        .hero-section {
-          flex-direction: column !important;
-          padding: 100px 24px 60px !important;
-          gap: 48px !important;
-          min-height: auto !important;
-        }
-        .hero-left { max-width: 100% !important; }
-        .hero-right-vis { display: none !important; }
-        .nav-links-row { display: none !important; }
-        .section-pad { padding: 52px 24px !important; }
-        .nav-cards-grid { grid-template-columns: repeat(2,1fr) !important; }
-        .flags-grid { grid-template-columns: repeat(2,1fr) !important; }
-        .stats-strip-grid { grid-template-columns: 1fr !important; }
-        .stats-row { flex-wrap: wrap !important; gap: 24px !important; }
-        .footer-wrap { padding: 52px 24px 28px !important; }
-        .footer-grid { grid-template-columns: 1fr 1fr !important; gap: 32px !important; }
-        .footer-bottom { flex-direction: column !important; align-items: flex-start !important; gap: 16px !important; }
-        .nav-xp-streak { display: none !important; }
-      }
-
-      @media (max-width:600px) {
-        .nav-cards-grid { grid-template-columns: 1fr !important; }
-        .flags-grid { grid-template-columns: 1fr !important; }
-        .footer-grid { grid-template-columns: 1fr !important; }
-        .hero-btns { flex-direction: column !important; }
-      }
-    `}</style>
-  );
-}
-
 // ─── MAIN HOMEPAGE ───────────────────────────────────────────────────────────
-// Fixed: self-contained with internal page state + setPage prop is optional
-export function HomePage({ setPage: setPageProp }) {
-  const [currentPage, setCurrentPage] = useState("home");
-  const [navScrolled, setNavScrolled] = useState(false);
-
-  // Use prop if provided (for integration), otherwise use internal state
-  const setPage = setPageProp || setCurrentPage;
-
-  useEffect(() => {
-    const onScroll = () => setNavScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
-
-  // If using internal state and not on home page, show placeholder
-  if (!setPageProp && currentPage !== "home") {
-    return (
-      <div style={{
-        ...T.page,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        flexDirection: "column",
-        gap: 24,
-        zIndex: 10,
-        position: "relative",
-      }}>
-        <GlobalStyles />
-        <div style={{
-          fontFamily: "'Orbitron',sans-serif",
-          fontSize: "2rem",
-          color: "#00f5ff",
-          textShadow: "0 0 30px rgba(0,245,255,.5)",
-        }}>
-          {currentPage.toUpperCase()} PAGE
-        </div>
-        <p style={{ color: "#546e7a", fontFamily: "'Share Tech Mono',monospace" }}>
-          This page would be rendered here in the full app.
-        </p>
-        <button
-          style={T.btnHP}
-          onClick={() => setCurrentPage("home")}
-        >
-          ← Back to Home
-        </button>
-      </div>
-    );
-  }
-
+export function HomePage({ setPage }) {
   return (
-    <div className="pg-grid-bg" style={{ ...T.page }}>
-      <GlobalStyles />
-
-      {/* ── BACKGROUND LAYERS ── */}
-      <MatrixCanvas />
-      <ParticleCanvas />
-      <HexCanvas />
-      <LightningStreaks />
+    <div className="pg-bg" style={{ ...T.page }}>
 
       {/* Scanlines overlay */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 1,
-          pointerEvents: "none",
-          background:
-            "repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px)",
-          animation: "scanlineScroll 8s linear infinite",
-        }}
-      />
+      <div className="scanlines" style={{ animation: "scanlineScroll 8s linear infinite" }} />
 
       {/* Ambient orbs */}
       {[
@@ -1127,12 +517,8 @@ export function HomePage({ setPage: setPageProp }) {
       ].map((o, i) => (
         <div
           key={i}
+          className="orb"
           style={{
-            position: "fixed",
-            borderRadius: "50%",
-            filter: "blur(120px)",
-            pointerEvents: "none",
-            zIndex: 0,
             width: o.w,
             height: o.h,
             background: o.bg,
@@ -1140,214 +526,10 @@ export function HomePage({ setPage: setPageProp }) {
             left: o.left ?? "auto",
             right: o.right ?? "auto",
             bottom: o.bottom ?? "auto",
-            animation: `orbF 8s ${o.delay} ease-in-out infinite`,
+            animationDelay: o.delay,
           }}
         />
       ))}
-
-      {/* ── NAVBAR ── */}
-      <nav
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 1000,
-          padding: "0 40px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          height: 62,
-          background: navScrolled ? "rgba(0,5,9,0.98)" : "rgba(0,5,9,0.92)",
-          backdropFilter: "blur(24px)",
-          borderBottom: "1px solid rgba(0,245,255,.15)",
-          boxShadow: "0 1px 30px rgba(0,245,255,0.08),inset 0 -1px 0 rgba(0,245,255,0.1)",
-          transition: "background .3s",
-        }}
-      >
-        {/* Bottom gradient line */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            right: 0,
-            height: 1,
-            background: "linear-gradient(90deg,transparent,#00f5ff,#d500f9,#00f5ff,transparent)",
-            opacity: 0.6,
-            pointerEvents: "none",
-          }}
-        />
-
-        {/* Logo */}
-        <div
-          style={{
-            ...T.logo,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            animation: "glitch 8s infinite",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-          onClick={() => setPage("home")}
-        >
-          <svg
-            viewBox="0 0 36 36"
-            fill="none"
-            width={34}
-            height={34}
-            style={{ filter: "drop-shadow(0 0 12px #00f5ff)" }}
-          >
-            <path
-              d="M18 2L4 8v12c0 8 6.67 14.93 14 16 7.33-1.07 14-7.99 14-16V8L18 2z"
-              fill="rgba(0,229,255,.1)"
-              stroke="#00e5ff"
-              strokeWidth="1.5"
-            />
-            <path
-              d="M12 18l4 4 8-8"
-              stroke="#00e5ff"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Phish
-          <span style={{ color: "#00f5ff", textShadow: "0 0 20px #00f5ff" }}>
-            Guard
-          </span>
-        </div>
-
-        {/* Nav links */}
-        <ul
-          className="nav-links-row"
-          style={{
-            display: "flex",
-            listStyle: "none",
-            gap: 24,
-            margin: "0 auto",
-          }}
-        >
-          {[
-            ["Home", "home"],
-            ["Simulator", "simulator"],
-            ["Quiz", "quiz"],
-            ["🏆 Leaderboard", "leaderboard"],
-            ["Gallery", "gallery"],
-            ["My Progress", "progress"],
-          ].map(([label, pg]) => (
-            <li key={pg}>
-              <a
-                href="#"
-                className="nav-link-item"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setPage(pg);
-                }}
-                style={{
-                  color: "#546e7a",
-                  textDecoration: "none",
-                  fontSize: ".78rem",
-                  fontWeight: 600,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                  fontFamily: "'Share Tech Mono',monospace",
-                  transition: "color .2s",
-                }}
-              >
-                {label}
-              </a>
-            </li>
-          ))}
-        </ul>
-
-        {/* Right controls */}
-        <div
-          className="nav-right"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            flexShrink: 0,
-          }}
-        >
-          <div
-            className="nav-xp-streak"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "5px 14px",
-              background: "rgba(0,245,255,.06)",
-              border: "1px solid rgba(0,245,255,.25)",
-              borderRadius: 4,
-              fontFamily: "'Share Tech Mono',monospace",
-              fontSize: ".72rem",
-              color: "#00f5ff",
-              boxShadow: "0 0 12px rgba(0,245,255,.1),inset 0 0 12px rgba(0,245,255,.03)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            ⚡ 1250 XP
-          </div>
-          <div
-            className="nav-xp-streak"
-            style={{
-              fontFamily: "'Share Tech Mono',monospace",
-              fontSize: ".72rem",
-              color: "#ff6d00",
-              whiteSpace: "nowrap",
-            }}
-          >
-            🔥 5 day streak
-          </div>
-          <button
-            className="btn-p-hover"
-            onClick={() => setPage("quiz")}
-            style={{
-              padding: "7px 20px",
-              background: "transparent",
-              border: "1px solid #00f5ff",
-              borderRadius: 3,
-              color: "#00f5ff",
-              fontSize: ".78rem",
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "'Share Tech Mono',monospace",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              boxShadow: "0 0 20px rgba(0,245,255,.2),inset 0 0 20px rgba(0,245,255,.05)",
-              position: "relative",
-              overflow: "hidden",
-              whiteSpace: "nowrap",
-              transition: "all .25s",
-            }}
-          >
-            Start Quiz
-          </button>
-        </div>
-      </nav>
-
-      {/* Hackathon tag */}
-      <div
-        style={{
-          position: "fixed",
-          top: 64,
-          right: 0,
-          zIndex: 999,
-          background: "linear-gradient(135deg,#d500f9,#8b00e8)",
-          color: "white",
-          fontFamily: "'Share Tech Mono',monospace",
-          fontSize: ".65rem",
-          padding: "4px 16px 4px 10px",
-          letterSpacing: "0.1em",
-          clipPath: "polygon(8px 0,100% 0,100% 100%,0 100%)",
-          boxShadow: "0 0 20px rgba(213,0,249,0.4)",
-        }}
-      >
-        🏆 HACKATHON BUILD
-      </div>
 
       {/* ── HERO ── */}
       <section
@@ -1474,7 +656,6 @@ export function HomePage({ setPage: setPageProp }) {
             </button>
           </div>
 
-          {/* Fixed: StatDivider uses fixed height instead of alignSelf:stretch */}
           <div
             className="stats-row"
             style={{
@@ -1562,7 +743,7 @@ export function HomePage({ setPage: setPageProp }) {
                 fontSize: "1rem",
                 fontWeight: 700,
                 color: "#ff1744",
-                textShadow: "0 0 15px rgba(255,23,68,.5)",
+                textShadow: "0 0 30px rgba(255,23,68,0.5)",
               }}
             >
               6 Red Flags
@@ -1814,7 +995,6 @@ export function HomePage({ setPage: setPageProp }) {
             </div>
           </div>
 
-          {/* Footer link columns */}
           {[
             [
               "Platform",
@@ -1891,7 +1071,6 @@ export function HomePage({ setPage: setPageProp }) {
           ))}
         </div>
 
-        {/* Bottom bar */}
         <div
           className="footer-bottom"
           style={{
@@ -1956,9 +1135,4 @@ export function HomePage({ setPage: setPageProp }) {
       </footer>
     </div>
   );
-}
-
-// ─── DEFAULT EXPORT (standalone app entry point) ─────────────────────────────
-export default function App() {
-  return <HomePage />;
 }

@@ -89,6 +89,20 @@ export const GLOBAL_CSS = `
     0%   { top: 0; opacity: .8; }
     100% { top: 100%; opacity: 0; }
   }
+  @keyframes scanlineScroll {
+    0%   { background-position: 0 0; }
+    100% { background-position: 0 100px; }
+  }
+  @keyframes blinkBorder {
+    0%,100% { border-color: rgba(255,23,68,.4); box-shadow: 0 0 10px rgba(255,23,68,.15); }
+    50%      { border-color: rgba(255,23,68,.85); box-shadow: 0 0 22px rgba(255,23,68,.4); }
+  }
+  @keyframes streamFall {
+    0%   { top: -300px; opacity: 0; }
+    10%  { opacity: .7; }
+    90%  { opacity: .3; }
+    100% { top: 110vh; opacity: 0; }
+  }
   @keyframes glitch {
     0%,90%,100% { transform: none; }
     92% { transform: translate(-2px, 1px); }
