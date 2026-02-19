@@ -4,19 +4,11 @@ import { GLOBAL_CSS }                            from "./styles/globalStyles";
 import { useXPSystem }                           from "./hooks/useXPSystem";
 import { useToast }                              from "./hooks/useToast";
 import { useTurtleTip }                          from "./hooks/useTurtleTip";
-import { MatrixCanvas, Navbar, Toast,
+import { CyberBackground, Navbar, Toast,
          LevelUpOverlay, Turtle }                from "./components";
 import { HomePage, QuizPage, SimulatorPage,
          LeaderboardPage, GalleryPage,
          ProgressPage }                          from "./pages";
-
-// ─── AMBIENT BACKGROUND ORBS ─────────────────────────────────────────────────
-const ORBS = [
-  { w: 700, h: 700, bg: "rgba(0,245,255,0.07)",   top: -200,   left: -200,   delay: "0s"  },
-  { w: 500, h: 500, bg: "rgba(213,0,249,0.09)",   top: "40%",  right: -200,  delay: "-3s" },
-  { w: 400, h: 400, bg: "rgba(0,255,157,0.05)",   bottom:"10%",left: "20%",  delay: "-6s" },
-  { w: 300, h: 300, bg: "rgba(255,23,68,0.06)",   top: "60%",  left: "10%",  delay: "-2s" },
-];
 
 /**
  * App
@@ -42,29 +34,8 @@ export default function App() {
       {/* ── Global CSS ── */}
       <style>{GLOBAL_CSS}</style>
 
-      {/* ── Background layers ── */}
-      <canvas id="matrix-canvas" />   {/* replaced by MatrixCanvas below */}
-      <MatrixCanvas />
-      <div className="pg-bg" />
-      <div className="scanlines" />
-
-      {/* Ambient colour orbs */}
-      {ORBS.map((o, i) => (
-        <div
-          key={i}
-          className="orb"
-          style={{
-            width:             o.w,
-            height:            o.h,
-            background:        o.bg,
-            ...(o.top    !== undefined ? { top:    o.top }    : {}),
-            ...(o.bottom !== undefined ? { bottom: o.bottom } : {}),
-            ...(o.left   !== undefined ? { left:   o.left }   : {}),
-            ...(o.right  !== undefined ? { right:  o.right }  : {}),
-            animationDelay:    o.delay,
-          }}
-        />
-      ))}
+      {/* ── Shared background ── */}
+      <CyberBackground />
 
       {/* ── Hackathon badge ── */}
       <div
