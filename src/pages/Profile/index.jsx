@@ -8,7 +8,7 @@ import { db, storage } from '../../firebase/config';
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { BADGES, MODULES } from '../../constants';
-import { createClass, joinClass, leaveClass, getClassInfo, getUserActivityLogs, getUserWeeklyXPEarned, logPlatformAction } from '../../firebase/db';
+import { createClass, joinClass, leaveClass, getClassInfo, getUserActivityLogs, getUserWeeklyXPEarned, getUserAuditExportRows, logPlatformAction } from '../../firebase/db';
 
 const INP = {
     width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,245,255,0.2)",
@@ -28,21 +28,26 @@ export function ProfilePage({ showToast }) {
     const [activityLogs, setActivityLogs] = useState([]);
     const [weeklyXP, setWeeklyXP] = useState(0);
     const [logsLoading, setLogsLoading] = useState(false);
+    const [exportingLogs, setExportingLogs] = useState(false);
     const [formData, setFormData] = useState({ displayName: "", bio: "", specialization: "General Defense" });
 
     const level = profile?.level || 1;
     const xp = profile?.xp || 0;
     const streak = profile?.streak || 0;
+    const agentCodename = `Agent_${(user?.uid || "agent").slice(0, 5).toUpperCase()}`;
+    const safeDisplayName = /^Agent_/i.test(profile?.displayName || "")
+        ? profile.displayName
+        : agentCodename;
 
     useEffect(() => {
         if (profile) {
             setFormData({
-                displayName: profile.displayName || user?.displayName || "",
+                displayName: safeDisplayName,
                 bio: profile.bio || "",
                 specialization: profile.specialization || "General Defense",
             });
         }
-    }, [profile, user]);
+    }, [profile, safeDisplayName]);
 
     useEffect(() => {
         if (profile?.classCode) {
@@ -139,6 +144,89 @@ export function ProfilePage({ showToast }) {
             .replaceAll("_", " ")
             .replace(/\b\w/g, (c) => c.toUpperCase());
 
+    const csvEscape = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+    const downloadActivityExcel = async () => {
+        if (!user?.uid || exportingLogs) return;
+        setExportingLogs(true);
+
+        try {
+            const rows = await getUserAuditExportRows(user.uid, 1200);
+            if (!rows.length) {
+                showToast("No logs found for export yet.", "inf");
+                return;
+            }
+
+            const headers = [
+                "Occurred At",
+                "Source",
+                "Action",
+                "XP Earned",
+                "XP Before",
+                "XP After",
+                "Level Before",
+                "Level After",
+                "Reason",
+                "Difficulty",
+                "Question ID",
+                "Stage ID",
+                "Module ID",
+                "Correct",
+                "Score",
+                "Total",
+                "Flags Found",
+                "Total Flags",
+                "Record ID",
+                "Metadata",
+            ];
+
+            const csvLines = [
+                headers.map(csvEscape).join(","),
+                ...rows.map((row) =>
+                    [
+                        row.occurredAt,
+                        row.source,
+                        row.action,
+                        row.xpEarned,
+                        row.xpBefore,
+                        row.xpAfter,
+                        row.levelBefore,
+                        row.levelAfter,
+                        row.reason,
+                        row.difficulty,
+                        row.questionId,
+                        row.stageId,
+                        row.moduleId,
+                        row.correct,
+                        row.score,
+                        row.total,
+                        row.flagsFound,
+                        row.totalFlags,
+                        row.id,
+                        row.metadata,
+                    ].map(csvEscape).join(",")
+                ),
+            ];
+
+            const blob = new Blob(["\uFEFF" + csvLines.join("\n")], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const datePart = new Date().toISOString().slice(0, 10);
+            const anchor = document.createElement("a");
+            anchor.href = url;
+            anchor.download = `phishguard-activity-${datePart}.csv`;
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            URL.revokeObjectURL(url);
+
+            showToast("Activity log export downloaded.", "ok");
+        } catch (e) {
+            showToast(e?.message || "Failed to export logs.", "ng");
+        } finally {
+            setExportingLogs(false);
+        }
+    };
+
     return (
         <div style={{ ...T.page, background: "transparent" }}>
             <section style={{ ...T.sec, maxWidth: 920, margin: "0 auto", padding: "80px 20px" }}>
@@ -160,7 +248,7 @@ export function ProfilePage({ showToast }) {
                                     <input type="file" hidden accept="image/*" onChange={handleAvatarChange} />
                                 </label>
                             </div>
-                            <h2 style={{ fontFamily: "Orbitron", fontSize: "1.2rem", color: "#e0f7fa", margin: "0 0 4px" }}>{profile?.displayName || user?.displayName || "Agent"}</h2>
+                            <h2 style={{ fontFamily: "Orbitron", fontSize: "1.2rem", color: "#e0f7fa", margin: "0 0 4px" }}>{safeDisplayName}</h2>
                             <div style={{ color: "#00f5ff", fontFamily: "Share Tech Mono", fontSize: "0.8rem", marginBottom: 8 }}>LVL {level} DEFENDER</div>
                             <div style={{ display: "inline-block", padding: "3px 10px", borderRadius: 4, fontSize: "0.65rem", fontFamily: "Share Tech Mono", background: user.emailVerified ? "rgba(0,255,157,0.1)" : "rgba(255,23,68,0.1)", color: user.emailVerified ? "#00ff9d" : "#ff1744", border: `1px solid ${user.emailVerified ? "rgba(0,255,157,0.2)" : "rgba(255,23,68,0.2)"}`, marginBottom: 15 }}>
                                 STATUS: {user.emailVerified ? "VERIFIED" : "UNVERIFIED"}

@@ -8,7 +8,8 @@ export default defineConfig({
 
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "masked-icon.svg"],
+      includeAssets: ["favicon.svg", "apple-touch-icon.svg"],
+      includeManifestIcons: false,
       manifest: {
         name: "PhishGuard – Cyber Threat Training",
         short_name: "PhishGuard",
@@ -19,9 +20,10 @@ export default defineConfig({
         orientation: "any",
         start_url: "/",
         icons: [
-          { src: "/pwa-192x192.svg", sizes: "192x192", type: "image/svg+xml" },
-          { src: "/pwa-512x512.svg", sizes: "512x512", type: "image/svg+xml" },
-          { src: "/pwa-512x512.svg", sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" },
+          { src: "/pwa-app-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/pwa-app-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/pwa-maskable-192.png", sizes: "192x192", type: "image/png", purpose: "maskable" },
+          { src: "/pwa-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
         ],
         categories: ["education", "games", "productivity"],
         shortcuts: [
@@ -30,20 +32,20 @@ export default defineConfig({
             short_name: "Quiz",
             description: "Jump straight into a phishing quiz",
             url: "/quiz",
-            icons: [{ src: "/pwa-192x192.svg", sizes: "192x192" }],
+            icons: [{ src: "/pwa-app-192.png", sizes: "192x192", type: "image/png" }],
           },
           {
             name: "Simulator",
             short_name: "Simulate",
             description: "Run the phishing simulator",
             url: "/simulator",
-            icons: [{ src: "/pwa-192x192.svg", sizes: "192x192" }],
+            icons: [{ src: "/pwa-app-192.png", sizes: "192x192", type: "image/png" }],
           },
         ],
       },
       workbox: {
         // Cache Firebase SDK + app assets
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
