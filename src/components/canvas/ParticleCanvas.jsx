@@ -92,6 +92,7 @@ export function ParticleCanvas() {
                         const alpha = (1 - d / CONN) * 0.22;
                         const [r, g, bl] = a.color;
                         ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha})`;
+                        ctx.lineWidth = 0.6;
                         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
                     }
                 }
