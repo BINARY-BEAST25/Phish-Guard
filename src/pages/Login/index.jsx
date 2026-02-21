@@ -107,13 +107,13 @@ export default function LoginPage({ onClose }) {
                                 <label htmlFor="login-email" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
                                     {"// EMAIL_ADDRESS"}
                                 </label>
-                                <input id="login-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="agent@phishguard.gov" value={email} onChange={e => setEmail(e.target.value)} required />
+                                <input id="login-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="agent@phishguard.gov" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
                             </div>
                             <div style={{ marginBottom: 6 }}>
                                 <label htmlFor="login-password" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
                                     {"// ACCESS_KEY"}
                                 </label>
-                                <input id="login-password" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required />
+                                <input id="login-password" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="password" placeholder="••••••••" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
                             </div>
                             <div style={{ textAlign: "right", marginBottom: 16 }}>
                                 <button
@@ -145,7 +145,7 @@ export default function LoginPage({ onClose }) {
                                 <label htmlFor="reset-email" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
                                     {"// RECOVERY_EMAIL"}
                                 </label>
-                                <input id="reset-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="Enter your email" value={email} onChange={e => setEmail(e.target.value)} required />
+                                <input id="reset-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="Enter your email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
                             </div>
                             <button type="submit" disabled={busy} style={{ ...T.btnP, width: "100%" }}>{busy ? "Transmitting..." : "Send Reset Link"}</button>
                         </form>
@@ -161,19 +161,19 @@ export default function LoginPage({ onClose }) {
                             <label htmlFor="reg-name" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
                                 {"// FULL_NAME"}
                             </label>
-                            <input id="reg-name" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="text" placeholder="e.g. Agent Smith" value={name} onChange={e => setName(e.target.value)} required />
+                            <input id="reg-name" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="text" placeholder="e.g. Agent Smith" autoComplete="name" value={name} onChange={e => setName(e.target.value)} required />
                         </div>
                         <div style={{ marginBottom: 12 }}>
                             <label htmlFor="reg-email" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
                                 {"// EMAIL_ADDRESS"}
                             </label>
-                            <input id="reg-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="Enter your email" value={email} onChange={e => setEmail(e.target.value)} required />
+                            <input id="reg-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="Enter your email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
                         </div>
                         <div style={{ marginBottom: 16 }}>
                             <label htmlFor="reg-password" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
                                 {"// NEW_ACCESS_KEY"}
                             </label>
-                            <input id="reg-password" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="password" placeholder="Min 6 characters" value={password} onChange={e => setPassword(e.target.value)} minLength={6} required />
+                            <input id="reg-password" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="password" placeholder="Min 6 characters" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} minLength={6} required />
                         </div>
                         <button type="submit" disabled={busy} style={{ ...T.btnP, width: "100%" }}>{busy ? "Initializing..." : "Register Now"}</button>
                         <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem", color: "var(--txt2)" }}>
