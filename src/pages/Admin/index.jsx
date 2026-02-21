@@ -243,6 +243,7 @@ export function AdminPage({ showToast }) {
                 <input
                     type="password" placeholder="ENTER ACCESS KEY" value={pass}
                     onChange={e => setPass(e.target.value)} autoFocus
+                    maxLength={32} autoComplete="current-password"
                     style={{ ...INP, textAlign: "center", letterSpacing: "0.3em", marginBottom: 20, padding: 14 }}
                 />
                 <button type="submit" style={{ ...T.btnHP, width: "100%", justifyContent: "center" }}>🚀 INITIALIZE SESSION</button>
@@ -309,7 +310,7 @@ export function AdminPage({ showToast }) {
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                             <div style={CARD}>
-                                <div style={{ color: "#00f5ff", fontFamily: "Share Tech Mono", fontSize: "0.75rem", marginBottom: 12 }}>// QUIZ QUESTION POOL</div>
+                                <div style={{ color: "#00f5ff", fontFamily: "Share Tech Mono", fontSize: "0.75rem", marginBottom: 12 }}>{"// QUIZ QUESTION POOL"}</div>
                                 <div style={{ color: "#e0f7fa", fontSize: "1.4rem", fontWeight: 700 }}>{quizList.length} questions in Firestore</div>
                                 <div style={{ color: "var(--txt2)", fontSize: "0.75rem", marginTop: 4 }}>Static questions in code: {staticQuizCount}</div>
                                 <button onClick={handleSyncQuizContent} disabled={loading} style={{ ...T.btnG, marginTop: 10, fontSize: "0.72rem" }}>
@@ -317,7 +318,7 @@ export function AdminPage({ showToast }) {
                                 </button>
                             </div>
                             <div style={CARD}>
-                                <div style={{ color: "#d500f9", fontFamily: "Share Tech Mono", fontSize: "0.75rem", marginBottom: 12 }}>// SIMULATOR SCENARIOS</div>
+                                <div style={{ color: "#d500f9", fontFamily: "Share Tech Mono", fontSize: "0.75rem", marginBottom: 12 }}>{"// SIMULATOR SCENARIOS"}</div>
                                 <div style={{ color: "#e0f7fa", fontSize: "1.4rem", fontWeight: 700 }}>{simList.length} scenarios in Firestore</div>
                                 <div style={{ color: "var(--txt2)", fontSize: "0.75rem", marginTop: 4 }}>Static scenarios in code: {staticSimCount}</div>
                                 <button onClick={handleSyncSimulatorContent} disabled={loading} style={{ ...T.btnG, marginTop: 10, fontSize: "0.72rem" }}>
@@ -326,7 +327,7 @@ export function AdminPage({ showToast }) {
                             </div>
                         </div>
                         <div style={{ ...CARD, marginTop: 4 }}>
-                            <div style={{ color: "#00ff9d", fontFamily: "Share Tech Mono", fontSize: "0.75rem", marginBottom: 10 }}>// NEURAL ACADEMY MODULES</div>
+                            <div style={{ color: "#00ff9d", fontFamily: "Share Tech Mono", fontSize: "0.75rem", marginBottom: 10 }}>{"// NEURAL ACADEMY MODULES"}</div>
                             <div style={{ color: "#e0f7fa", fontSize: "1.1rem", fontWeight: 700 }}>{staticModuleCount} modules in academy constants</div>
                             <div style={{ color: "var(--txt2)", fontSize: "0.75rem", marginTop: 4 }}>
                                 Quiz and simulator pages now support backend-first content with local fallback.

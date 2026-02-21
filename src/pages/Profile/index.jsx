@@ -196,7 +196,7 @@ export function ProfilePage({ showToast }) {
 
                         {/* Badges */}
                         <div style={{ ...T.card, padding: 25 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 15 }}>// ACHIEVEMENT BADGES</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 15 }}>{"// ACHIEVEMENT BADGES"}</div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                                 {BADGES.map((b, i) => {
                                     const earned = (b.req.type === 'level' && level >= b.req.value) ||
@@ -213,7 +213,7 @@ export function ProfilePage({ showToast }) {
                         </div>
                         {/* -- SECURITY -- */}
                         <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// NEURAL ACADEMY TRACKING</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>{"// NEURAL ACADEMY TRACKING"}</div>
                             <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                                     <div style={{ fontSize: "0.78rem", color: "#e0f7fa" }}>
@@ -255,7 +255,7 @@ export function ProfilePage({ showToast }) {
                         </div>
 
                         <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// RECENT ACTIVITY LOGS</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>{"// RECENT ACTIVITY LOGS"}</div>
                             <div style={{ maxHeight: 220, overflowY: "auto" }}>
                                 {logsLoading && (
                                     <div style={{ color: "var(--txt2)", fontSize: "0.75rem" }}>Loading logs...</div>
@@ -281,14 +281,14 @@ export function ProfilePage({ showToast }) {
                         {/* EDIT FORM */}
                         <div style={{ ...T.card, padding: 28 }}>
                         <form onSubmit={handleUpdate} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 4 }}>// AGENT CONFIGURATION</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 4 }}>{"// AGENT CONFIGURATION"}</div>
                             <div>
                                 <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 6 }}>CODENAME</label>
-                                <input style={INP} value={formData.displayName} onChange={e => setFormData({ ...formData, displayName: e.target.value })} required />
+                                <input style={INP} value={formData.displayName} onChange={e => setFormData({ ...formData, displayName: e.target.value })} maxLength={64} autoComplete="nickname" required />
                             </div>
                             <div>
                                 <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 6 }}>BIO / MISSION STATEMENT</label>
-                                <textarea style={{ ...INP, minHeight: 90, resize: "vertical" }} value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} placeholder="Identify your defense methodology..." />
+                                <textarea style={{ ...INP, minHeight: 90, resize: "vertical" }} value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} maxLength={256} placeholder="Identify your defense methodology..." />
                             </div>
                             <div>
                                 <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 6 }}>SPECIALIZATION</label>
@@ -309,7 +309,7 @@ export function ProfilePage({ showToast }) {
 
                         {/* -- CLASS / GROUP -- */}
                         <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// TRAINING CLASS / FRIEND GROUP</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>{"// TRAINING CLASS / FRIEND GROUP"}</div>
 
                             {profile?.classCode ? (
                                 <div style={{ background: "rgba(0,245,255,0.04)", border: "1px solid rgba(0,245,255,0.2)", borderRadius: 10, padding: 20 }}>
@@ -353,7 +353,7 @@ export function ProfilePage({ showToast }) {
                             ) : (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                     <p style={{ color: "var(--txt2)", fontSize: "0.8rem", margin: 0 }}>
-                                        Create a private group or join a friend's class to compete on a shared leaderboard.
+                                        Create a private group or join a friend&apos;s class to compete on a shared leaderboard.
                                     </p>
                                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                                         <button
@@ -406,7 +406,7 @@ export function ProfilePage({ showToast }) {
 
 
                         <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 16 }}>// SECURITY &amp; AUTHENTICATION</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 16 }}>{"// SECURITY & AUTHENTICATION"}</div>
 
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                 {user.isAnonymous && (
@@ -429,9 +429,9 @@ export function ProfilePage({ showToast }) {
 
                                 {linkMode === "email" && user.isAnonymous && (
                                     <div style={{ padding: 15, background: "rgba(0,0,0,0.3)", borderRadius: 8, border: "1px solid rgba(0,245,255,0.2)" }}>
-                                        <div style={{ ...T.secLbl, fontSize: "0.6rem", marginBottom: 10 }}>// ENTER CREDENTIALS</div>
-                                        <input style={{ ...INP, marginBottom: 10 }} type="email" placeholder="Email" value={linkEmailData.email} onChange={e => setLinkEmailData({ ...linkEmailData, email: e.target.value })} />
-                                        <input style={{ ...INP, marginBottom: 10 }} type="password" placeholder="Password" value={linkEmailData.password} onChange={e => setLinkEmailData({ ...linkEmailData, password: e.target.value })} />
+                                        <div style={{ ...T.secLbl, fontSize: "0.6rem", marginBottom: 10 }}>{"// ENTER CREDENTIALS"}</div>
+                                        <input style={{ ...INP, marginBottom: 10 }} type="email" placeholder="Email" value={linkEmailData.email} onChange={e => setLinkEmailData({ ...linkEmailData, email: e.target.value })} maxLength={128} autoComplete="email" />
+                                        <input style={{ ...INP, marginBottom: 10 }} type="password" placeholder="Password" value={linkEmailData.password} onChange={e => setLinkEmailData({ ...linkEmailData, password: e.target.value })} maxLength={128} autoComplete="new-password" />
                                         <div style={{ display: "flex", gap: 10 }}>
                                             <button
                                                 onClick={async () => {

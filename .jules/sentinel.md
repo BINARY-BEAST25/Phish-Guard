@@ -1,4 +1,4 @@
-## 2025-05-15 - [Securing Admin Access]
-**Vulnerability:** Hardcoded administrative credentials in multiple frontend components (`src/App.jsx` and `src/pages/Admin/index.jsx`).
-**Learning:** Legacy development often leaves "demo" or placeholder credentials in the code, which can be easily discovered in the client-side bundle if not moved to environment variables. Redundant auth checks across layers can lead to inconsistent security if not unified.
-**Prevention:** Always use environment variables for any access control logic, even if it's just a UI-level gate. Implement `maxLength` constraints on all user-facing inputs to prevent large-payload attacks.
+## 2025-05-15 - Hardcoded Demo Credentials & Input Hardening
+**Vulnerability:** Found hardcoded demo credentials (`sumitboy2005@gmail.com` / `demo123`) directly in the Login UI component. Also found redundant client-side "AdminRoute" that relied on `localStorage` checks against environment variables, which is security theater. Many inputs lacked `maxLength` and `autoComplete` attributes.
+**Learning:** Hardcoded credentials are often left in during development for convenience but must be removed before production. Client-side routing guards that check against environment variables (like `VITE_ADMIN_ACCESS_KEY`) provide no real security if the secret is leaked to the client bundle or if the user can simply bypass the component.
+**Prevention:** Use environment-based conditional rendering for dev tools/credentials. Always implement `maxLength` on all user-facing inputs to prevent large-payload DoS/buffer issues. Ensure sensitive fields have proper `autoComplete` hints for password managers.

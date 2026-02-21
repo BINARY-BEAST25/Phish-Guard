@@ -87,34 +87,6 @@ function PWAInstallBanner() {
   );
 }
 
-// ─── ADMIN PROTECTION ROUTE ───────────────────────────────────────────────────
-function AdminRoute({ children }) {
-  const [authed, setAuthed] = useState(false);
-  const [pass, setPass] = useState("");
-
-  if (authed) return children;
-
-  const handleLogin = (e) => {
-    e.preventDefault();
-    const adminKey = import.meta.env.VITE_ADMIN_ACCESS_KEY;
-    if (adminKey && pass === adminKey) {
-      setAuthed(true);
-    } else {
-      alert("Invalid admin password");
-    }
-  };
-
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-      <form onSubmit={handleLogin} style={{ background: "rgba(0,12,26,0.95)", padding: 40, border: "1px solid rgba(0,245,255,0.2)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 20 }}>
-        <h2 style={{ fontFamily: "Orbitron, sans-serif", color: "#00f5ff", textAlign: "center", margin: 0 }}>ADMIN ACCESS</h2>
-        <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Enter password" maxLength={32} style={{ padding: 10, background: "rgba(255,255,255,0.05)", border: "1px solid #00f5ff", color: "white" }} />
-        <button type="submit" style={{ padding: 10, background: "#00f5ff", border: "none", color: "black", fontWeight: 'bold', cursor: 'pointer' }}>LOGIN</button>
-      </form>
-    </div>
-  );
-}
-
 // ─── INNER APP (has access to contexts) ──────────────────────────────────────
 function AppInner() {
   const navigate = useNavigate();
