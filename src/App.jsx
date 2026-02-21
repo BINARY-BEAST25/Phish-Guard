@@ -5,18 +5,17 @@ import { seedDatabase } from "./firebase/seed";
 import { GLOBAL_CSS } from "./styles/globalStyles";
 import { useXPSystem } from "./hooks/useXPSystem";
 import { useToast } from "./hooks/useToast";
-import { useTurtleTip } from "./hooks/useTurtleTip";
+import { useFinnTip } from "./hooks/useFinnTip";
 import {
   Navbar, Toast,
-  LevelUpOverlay, Turtle, CyberBackground
+  LevelUpOverlay, Finn, CyberBackground
 } from "./components";
 import {
   HomePage, QuizPage, SimulatorPage,
   LeaderboardPage, GalleryPage,
   ProgressPage, AdminPage, InformationPage,
-  ProfilePage, AILearningPage
+  ProfilePage, AILearningPage, LoginPage
 } from "./pages";
-import { LoginPage } from "./pages";
 import { AuthProvider, UserProvider, useAuth, useUser } from "./context";
 
 // ─── AMBIENT BACKGROUND ORBS ─────────────────────────────────────────────────
@@ -105,17 +104,10 @@ function AppInner() {
   const [showLogin, setShowLogin] = useState(false);
   const { user } = useAuth();
   const { profile } = useUser();
-  const shouldClientSeed = import.meta.env.DEV || import.meta.env.VITE_ENABLE_CLIENT_SEED === "true";
 
   useEffect(() => {
-    if (!user?.uid || !shouldClientSeed) return;
-    void seedDatabase({
-      uid: user.uid,
-      displayName: user.displayName || null,
-      email: user.email || null,
-      photoURL: user.photoURL || null,
-    });
-  }, [user?.uid, shouldClientSeed]);
+    seedDatabase();
+  }, []);
 
   const { xp, level, addXP, xpPct, xpToNext,
     levelUpData, clearLevelUp } = useXPSystem(
@@ -132,9 +124,7 @@ function AppInner() {
   }, [profile?.xp]);
 
   const { toast, showToast } = useToast();
-  const { currentTip, nextTip } = useTurtleTip(
-    profile?.displayName || user?.displayName || "OPERATOR"
-  );
+  const { currentTip, nextTip } = useFinnTip();
 
   // Always read streak from live Firestore profile
   const STREAK = profile?.streak ?? 0;
@@ -235,7 +225,7 @@ function AppInner() {
       <Toast msg={toast.msg} type={toast.type} visible={toast.visible} />
       <LevelUpOverlay data={levelUpData} onClose={clearLevelUp} />
       {!["/neural-academy", "/ai-learning"].includes(location.pathname) && (
-        <Turtle tip={currentTip} onClick={nextTip} />
+        <Finn tip={currentTip} onClick={nextTip} />
       )}
 
       {/* ── Login Modal ── */}
