@@ -11,6 +11,7 @@ export function ParticleCanvas() {
         let targetDark = { x: -9999, y: -9999 };
         let currentDark = { x: -9999, y: -9999 };
         const CONN = 120, MDIST = 150, DARK_R = 220;
+        const CONN_SQ = CONN * CONN, MDIST_SQ = MDIST * MDIST;
 
         const resize = () => {
             W = canvas.width = window.innerWidth;
@@ -59,24 +60,35 @@ export function ParticleCanvas() {
                 ctx.fillStyle = grad;
                 ctx.fillRect(0, 0, W, H);
             }
-            particles.forEach((p) => {
+            // Update positions and handle mouse interaction
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
                 p.pulse += 0.018;
                 const mdx = mouse.x - p.x, mdy = mouse.y - p.y;
-                const md = Math.sqrt(mdx * mdx + mdy * mdy);
-                if (md < MDIST) {
+                const mdistSq = mdx * mdx + mdy * mdy;
+                // Store squared distance to mouse for the connection loop
+                p._mdistSq = mdistSq;
+
+                if (mdistSq < MDIST_SQ) {
+                    const md = Math.sqrt(mdistSq);
                     p.vx += (mdx / md) * 0.012;
                     p.vy += (mdy / md) * 0.012;
                 }
                 p.vx *= 0.985; p.vy *= 0.985; p.x += p.vx; p.y += p.vy;
                 if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
                 if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-            });
+            }
+
+            // Draw connections between particles and to mouse
             for (let i = 0; i < particles.length; i++) {
+                const a = particles[i];
                 for (let j = i + 1; j < particles.length; j++) {
-                    const a = particles[i], b = particles[j];
+                    const b = particles[j];
                     const dx = a.x - b.x, dy = a.y - b.y;
-                    const d = Math.sqrt(dx * dx + dy * dy);
-                    if (d < CONN) {
+                    const distSq = dx * dx + dy * dy;
+                    // Use squared distance check to avoid Math.sqrt in the O(n^2) hot path
+                    if (distSq < CONN_SQ) {
+                        const d = Math.sqrt(distSq);
                         const alpha = (1 - d / CONN) * 0.22;
                         const [r, g, bl] = a.color;
                         ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha})`;
@@ -84,24 +96,26 @@ export function ParticleCanvas() {
                         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
                     }
                 }
-                const p = particles[i];
-                const mdx2 = p.x - mouse.x, mdy2 = p.y - mouse.y;
-                const md2 = Math.sqrt(mdx2 * mdx2 + mdy2 * mdy2);
-                if (md2 < MDIST) {
-                    const alpha = (1 - md2 / MDIST) * 0.55;
-                    const [r, g, bl] = p.color;
+                // Mouse connection using pre-calculated distance
+                if (a._mdistSq < MDIST_SQ) {
+                    const md = Math.sqrt(a._mdistSq);
+                    const alpha = (1 - md / MDIST) * 0.55;
+                    const [r, g, bl] = a.color;
                     ctx.strokeStyle = `rgba(${r},${g},${bl},${alpha})`; ctx.lineWidth = 0.9;
-                    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
                 }
             }
-            particles.forEach((p) => {
+
+            // Final render pass for particles
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
                 const [r, g, b] = p.color;
                 const pr = p.r * (0.75 + Math.sin(p.pulse) * 0.25);
                 ctx.beginPath(); ctx.arc(p.x, p.y, pr, 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(${r},${g},${b},0.8)`;
-                ctx.shadowColor = `rgba(${r},${g},${b},0.5)`; ctx.shadowBlur = 7;
-                ctx.fill(); ctx.shadowBlur = 0;
-            });
+                // Removed shadowBlur and shadowColor as they are extremely expensive and cause significant GPU overhead
+                ctx.fill();
+            }
             raf = requestAnimationFrame(frame);
         };
         frame();
