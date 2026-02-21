@@ -97,8 +97,8 @@ export default function LoginPage({ onClose }) {
                         </button>
                         <div style={{ textAlign: "center", color: "rgba(255,255,255,0.2)", margin: "12px 0", fontSize: "0.75rem" }}>— OR —</div>
                         <form onSubmit={handleSignIn}>
-                            <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 12 }} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-                            <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 6 }} type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
+                            <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 12 }} type="email" placeholder="Email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                            <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 6 }} type="password" placeholder="Password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
                             <div style={{ textAlign: "right", marginBottom: 16 }}>
                                 <span onClick={() => setMode("reset")} style={{ cursor: "pointer", color: "var(--txt2)", fontSize: "0.75rem", fontFamily: "Share Tech Mono" }}>Forgot Password?</span>
                             </div>
@@ -119,7 +119,7 @@ export default function LoginPage({ onClose }) {
                     <>
                         <p style={{ color: "var(--txt2)", fontSize: "0.85rem", marginBottom: 20, textAlign: "center" }}>Enter your email and we'll send a transmission to reset your credentials.</p>
                         <form onSubmit={handleReset}>
-                            <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 16 }} type="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
+                            <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 16 }} type="email" placeholder="Email address" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
                             <button type="submit" disabled={busy} style={{ ...T.btnP, width: "100%" }}>{busy ? "Transmitting..." : "Send Reset Link"}</button>
                         </form>
                         <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem", color: "var(--txt2)" }}>
@@ -130,9 +130,9 @@ export default function LoginPage({ onClose }) {
 
                 {mode === "register" && (
                     <form onSubmit={handleRegister}>
-                        <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 12 }} type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)} required />
-                        <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 12 }} type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-                        <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 16 }} type="password" placeholder="Password (min 6 chars)" value={password} onChange={e => setPassword(e.target.value)} minLength={6} required />
+                        <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 12 }} type="text" placeholder="Full Name" autoComplete="name" value={name} onChange={e => setName(e.target.value)} required />
+                        <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 12 }} type="email" placeholder="Email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                        <input style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 16 }} type="password" placeholder="Password (min 6 chars)" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} minLength={6} required />
                         <button type="submit" disabled={busy} style={{ ...T.btnP, width: "100%" }}>{busy ? "Initializing..." : "Register Now"}</button>
                         <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem", color: "var(--txt2)" }}>
                             Already guarded? <span onClick={() => setMode("login")} style={{ cursor: "pointer", color: "#00f5ff" }}>Sign In</span>
