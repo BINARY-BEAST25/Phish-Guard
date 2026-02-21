@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useUser } from "../context/UserContext";
 
 const MAIN_LINKS = [
-  { id: "ai-learning", label: "Neural Academy", icon: "🤖" },
+  { id: "neural-academy", label: "Neural Academy", icon: "🤖" },
   { id: "quiz", label: "Quiz", icon: "🧠" },
   { id: "simulator", label: "Simulator", icon: "🎯" },
   { id: "leaderboard", label: "Leaderboard", icon: "🏆" },

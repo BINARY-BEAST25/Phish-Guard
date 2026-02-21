@@ -66,7 +66,7 @@ export function Finn({ tip, onClick }) {
                         )}
                         {tip.includes("AI Academy") && (
                             <button
-                                onClick={(e) => { e.stopPropagation(); window.pgSetPage?.("ai-learning"); }}
+                                onClick={(e) => { e.stopPropagation(); window.pgSetPage?.("neural-academy"); }}
                                 style={{ background: "rgba(213,0,249,0.1)", border: "1px solid #d500f9", color: "#d500f9", padding: "4px 8px", fontSize: "0.6rem", borderRadius: 4, cursor: "pointer" }}
                             >
                                 OPEN ACADEMY

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { HashRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { seedDatabase } from "./firebase/seed";
 
 import { GLOBAL_CSS } from "./styles/globalStyles";
@@ -170,7 +170,9 @@ function AppInner() {
     "/gallery": "gallery",
     "/progress": "progress",
     "/admin": "admin",
-    "/ai-learning": "ai-learning",
+    "/admin-command-center": "admin",
+    "/ai-learning": "neural-academy",
+    "/neural-academy": "neural-academy",
     "/profile": "profile",
     "/about": "about",
     "/privacy": "privacy",
@@ -219,7 +221,7 @@ function AppInner() {
 
       {/* ── Navigation ── */}
       {/* Hide navbar on admin page for safety */}
-      {location.pathname !== "/admin" && (
+      {!["/admin", "/admin-command-center"].includes(location.pathname) && (
         <Navbar
           page={currentPage}
           setPage={setPage}
@@ -237,8 +239,10 @@ function AppInner() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/gallery" element={<GalleryPage {...toastProp} />} />
         <Route path="/progress" element={<ProgressPage {...xpProps} />} />
-        <Route path="/admin" element={<AdminPage {...toastProp} />} />
-        <Route path="/ai-learning" element={<AILearningPage />} />
+        <Route path="/admin-command-center" element={<AdminPage {...toastProp} />} />
+        <Route path="/admin" element={<Navigate to="/admin-command-center" replace />} />
+        <Route path="/neural-academy" element={<AILearningPage />} />
+        <Route path="/ai-learning" element={<Navigate to="/neural-academy" replace />} />
         <Route path="/profile" element={<ProfilePage {...toastProp} />} />
         <Route path="/about" element={<InformationPage type="about" onBack={() => setPage("home")} />} />
         <Route path="/privacy" element={<InformationPage type="privacy" onBack={() => setPage("home")} />} />
@@ -249,7 +253,7 @@ function AppInner() {
       {/* ── Global overlays ── */}
       <Toast msg={toast.msg} type={toast.type} visible={toast.visible} />
       <LevelUpOverlay data={levelUpData} onClose={clearLevelUp} />
-      {location.pathname !== "/ai-learning" && (
+      {!["/neural-academy", "/ai-learning"].includes(location.pathname) && (
         <Finn tip={currentTip} onClick={nextTip} />
       )}
 
@@ -264,12 +268,12 @@ function AppInner() {
 
 export default function App() {
   return (
-    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <UserProvider>
           <AppInner />
         </UserProvider>
       </AuthProvider>
-    </HashRouter>
+    </BrowserRouter>
   );
 }

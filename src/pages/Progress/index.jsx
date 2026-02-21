@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { T } from '../../styles';
 import { BADGES, MODULES } from '../../constants';
 import { useAuth, useUser } from "../../context";
@@ -35,6 +36,7 @@ function SectionLabel({ children }) {
 
 // ─── PROGRESS PAGE ────────────────────────────────────────────────────────────
 export function ProgressPage({ xp, level, xpPct, xpToNext }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { profile } = useUser();
   const [rankStats, setRankStats] = useState({ rank: null, totalUsers: 0, xp: 0 });
@@ -358,7 +360,7 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
               </div>
               {pendingModules > 0 ? (
                 <button
-                  onClick={() => { window.location.hash = "/ai-learning"; }}
+                  onClick={() => navigate("/neural-academy")}
                   style={{ ...T.btnHP, width: "100%", justifyContent: "center" }}
                 >
                   Complete Modules in Neural Academy
@@ -492,5 +494,6 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
     </div >
   );
 }
+
 
 

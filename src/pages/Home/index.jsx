@@ -554,7 +554,7 @@ export function HomePage({ setPage }) {
                 { label: "Home", page: "home" },
                 { label: "Quiz", page: "quiz" },
                 { label: "Simulator", page: "simulator" },
-                { label: "Neural Academy", page: "ai-learning" },
+                { label: "Neural Academy", page: "neural-academy" },
                 { label: "Leaderboard", page: "leaderboard" },
                 { label: "Progress", page: "progress" },
                 { label: "Gallery", page: "gallery" },

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { T } from '../../styles';
 import { PageHeader } from '../../components';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +16,7 @@ const INP = {
 };
 
 export function ProfilePage({ showToast }) {
+    const navigate = useNavigate();
     const { user, resetPassword, verifyEmail, linkGoogle, linkEmail, deleteAccount } = useAuth();
     const { profile } = useUser();
     const [loading, setLoading] = useState(false);
@@ -219,34 +221,12 @@ export function ProfilePage({ showToast }) {
                         <form onSubmit={handleUpdate} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                             <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 4 }}>// AGENT CONFIGURATION</div>
                             <div>
-<<<<<<< sentinel/fix-hardcoded-admin-creds-18160925271158690453
-                                <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 8, textTransform: "uppercase" }}>Codename</label>
-                                <input
-                                    style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", padding: 12, borderRadius: 4, fontFamily: "inherit" }}
-                                    value={formData.displayName}
-                                    onChange={e => setFormData({ ...formData, displayName: e.target.value })}
-                                    maxLength={50}
-                                    required
-                                />
-=======
                                 <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 6 }}>CODENAME</label>
                                 <input style={INP} value={formData.displayName} onChange={e => setFormData({ ...formData, displayName: e.target.value })} required />
->>>>>>> main
                             </div>
                             <div>
-<<<<<<< sentinel/fix-hardcoded-admin-creds-18160925271158690453
-                                <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 8, textTransform: "uppercase" }}>Bio / Mission Statement</label>
-                                <textarea
-                                    style={{ width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", padding: 12, borderRadius: 4, fontFamily: "inherit", minHeight: 100 }}
-                                    value={formData.bio}
-                                    onChange={e => setFormData({ ...formData, bio: e.target.value })}
-                                    maxLength={500}
-                                    placeholder="Identify your defense methodology..."
-                                />
-=======
                                 <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 6 }}>BIO / MISSION STATEMENT</label>
                                 <textarea style={{ ...INP, minHeight: 90, resize: "vertical" }} value={formData.bio} onChange={e => setFormData({ ...formData, bio: e.target.value })} placeholder="Identify your defense methodology..." />
->>>>>>> main
                             </div>
                             <div>
                                 <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 6 }}>SPECIALIZATION</label>
@@ -392,7 +372,7 @@ export function ProfilePage({ showToast }) {
                                 </div>
                                 {pendingModules > 0 ? (
                                     <button
-                                        onClick={() => { window.location.hash = "/ai-learning"; }}
+                                        onClick={() => navigate("/neural-academy")}
                                         style={{ ...T.btnHP, width: "100%", justifyContent: "center", fontSize: "0.75rem" }}
                                     >
                                         Continue in Neural Academy
@@ -536,3 +516,5 @@ export function ProfilePage({ showToast }) {
         </div>
     );
 }
+
+
