@@ -14,6 +14,9 @@ import {
     updateProfile,
     sendEmailVerification,
     signInAnonymously as firebaseSignInAnonymously,
+    linkWithPopup,
+    linkWithCredential,
+    EmailAuthProvider,
 } from "firebase/auth";
 
 import { auth } from "./config";
@@ -56,6 +59,23 @@ export async function signInGuest() {
     const { user } = await firebaseSignInAnonymously(auth);
     await createOrUpdateUser(user);
     return user;
+}
+
+// ─── Guest Upgrade / Linking ────────────────────────────────────────────────
+export async function linkGoogle() {
+    if (!auth.currentUser) throw new Error("No user is currently signed in.");
+    const result = await linkWithPopup(auth.currentUser, googleProvider);
+    // After linking, ensure the user document reflects any changes (though UID remains the same)
+    await createOrUpdateUser(result.user);
+    return result.user;
+}
+
+export async function linkEmail(email, password) {
+    if (!auth.currentUser) throw new Error("No user is currently signed in.");
+    const credential = EmailAuthProvider.credential(email, password);
+    const result = await linkWithCredential(auth.currentUser, credential);
+    await createOrUpdateUser(result.user);
+    return result.user;
 }
 
 // ─── Sign Out ─────────────────────────────────────────────────────────────────

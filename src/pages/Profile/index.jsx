@@ -9,9 +9,11 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { BADGES } from '../../constants';
 
 export function ProfilePage({ showToast }) {
-    const { user, resetPassword, verifyEmail } = useAuth();
+    const { user, resetPassword, verifyEmail, linkGoogle, linkEmail } = useAuth();
     const { profile, loading: profileLoading } = useUser();
     const [loading, setLoading] = useState(false);
+    const [linkMode, setLinkMode] = useState(null); // null | "email"
+    const [linkEmailData, setLinkEmailData] = useState({ email: "", password: "" });
 
     // XP and level logic
     const level = profile?.level || 1;
@@ -126,6 +128,31 @@ export function ProfilePage({ showToast }) {
                                     <div style={{ color: "var(--txt2)", fontSize: "0.65rem" }}>STREAK</div>
                                 </div>
                             </div>
+
+                            {/* XP Progress Bar */}
+                            <div style={{ marginTop: 20, textAlign: "left" }}>
+                                {(() => {
+                                    const XP_PER_LEVEL = [0, 500, 1200, 2100, 3200, 4500, 6000, 7700, 9600, 11700];
+                                    const currentLevelXP = XP_PER_LEVEL[level - 1] || 0;
+                                    const nextLevelXP = XP_PER_LEVEL[level] || (XP_PER_LEVEL[9] + 5000);
+                                    const progress = Math.min(100, Math.max(0, ((xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100));
+
+                                    return (
+                                        <>
+                                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.65rem", fontFamily: "Share Tech Mono", color: "var(--txt2)", marginBottom: 5 }}>
+                                                <span>PROGRESS TO LVL {level + 1}</span>
+                                                <span>{Math.round(progress)}%</span>
+                                            </div>
+                                            <div style={{ width: "100%", height: 6, background: "rgba(255,255,255,0.05)", borderRadius: 3, overflow: "hidden", border: "1px solid rgba(0,245,255,0.1)" }}>
+                                                <div style={{ width: `${progress}%`, height: "100%", background: "linear-gradient(90deg, #00f5ff, #00ff9d)", boxShadow: "0 0 10px rgba(0,245,255,0.5)" }} />
+                                            </div>
+                                            <div style={{ fontSize: "0.6rem", color: "rgba(255,255,255,0.3)", marginTop: 4, textAlign: "right", fontFamily: "Share Tech Mono" }}>
+                                                {xp} / {nextLevelXP} XP
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
                         </div>
 
                         {/* Badges Section */}
@@ -236,21 +263,105 @@ export function ProfilePage({ showToast }) {
                             <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 20 }}>// SECURITY & AUTHENTICATION</div>
 
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                {!user.emailVerified && user.providerData?.[0]?.providerId === 'password' && (
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                await verifyEmail();
-                                                showToast("VERIFICATION TRANSMISSION SENT", "ok");
-                                            } catch (e) { showToast(e.message, "ng"); }
-                                        }}
-                                        style={{ ...T.btnG, width: "100%", fontSize: "0.85rem" }}
-                                    >
-                                        ✉️ Verify Email Address
-                                    </button>
+                                {user.isAnonymous && (
+                                    <div style={{
+                                        padding: 15, background: "rgba(255,215,0,0.05)", borderRadius: 8,
+                                        border: "1px dashed rgba(255,215,0,0.3)", marginBottom: 10
+                                    }}>
+                                        <div style={{ color: "#ffd700", fontFamily: "Orbitron", fontSize: "0.8rem", marginBottom: 5 }}>⚠️ GUEST PROFILE ALERT</div>
+                                        <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.7)", margin: 0 }}>You are training as a guest. Link your account to save your XP and Level permanently across devices.</p>
+                                        <div style={{ display: "flex", gap: 10, marginTop: 15 }}>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        setLoading(true);
+                                                        await linkGoogle();
+                                                        showToast("ACCOUNT LINKED TO GOOGLE", "ok");
+                                                    } catch (e) { showToast(e.message, "ng"); }
+                                                    finally { setLoading(false); }
+                                                }}
+                                                style={{ ...T.btnP, flex: 1, fontSize: "0.75rem", background: "#fff", color: "#000" }}
+                                            >
+                                                Link Google
+                                            </button>
+                                            <button
+                                                onClick={() => setLinkMode("email")}
+                                                style={{ ...T.btnP, flex: 1, fontSize: "0.75rem" }}
+                                            >
+                                                Link Email
+                                            </button>
+                                        </div>
+                                    </div>
                                 )}
 
-                                {user.providerData?.[0]?.providerId === 'password' && (
+                                {linkMode === "email" && user.isAnonymous && (
+                                    <div style={{ padding: 15, background: "rgba(0,0,0,0.3)", borderRadius: 8, border: "1px solid rgba(0,245,255,0.2)", marginBottom: 10 }}>
+                                        <div style={{ ...T.secLbl, fontSize: "0.6rem", marginBottom: 10 }}>// ENTER LINKING CREDENTIALS</div>
+                                        <input
+                                            style={{ width: "100%", padding: 10, borderRadius: 4, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 10, fontSize: "0.8rem" }}
+                                            type="email" placeholder="Email" value={linkEmailData.email} onChange={e => setLinkEmailData({ ...linkEmailData, email: e.target.value })}
+                                        />
+                                        <input
+                                            style={{ width: "100%", padding: 10, borderRadius: 4, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", marginBottom: 10, fontSize: "0.8rem" }}
+                                            type="password" placeholder="Password" value={linkEmailData.password} onChange={e => setLinkEmailData({ ...linkEmailData, password: e.target.value })}
+                                        />
+                                        <div style={{ display: "flex", gap: 10 }}>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        setLoading(true);
+                                                        await linkEmail(linkEmailData.email, linkEmailData.password);
+                                                        showToast("ACCOUNT LINKED TO EMAIL", "ok");
+                                                        setLinkMode(null);
+                                                    } catch (e) { showToast(e.message, "ng"); }
+                                                    finally { setLoading(false); }
+                                                }}
+                                                style={{ ...T.btnHP, flex: 2, fontSize: "0.75rem" }}
+                                            >
+                                                Confirm Link
+                                            </button>
+                                            <button onClick={() => setLinkMode(null)} style={{ ...T.btnG, flex: 1, fontSize: "0.75rem", background: "transparent" }}>Cancel</button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {!user.emailVerified && !user.isAnonymous && (
+                                    <div style={{
+                                        padding: 15, background: "rgba(255,71,87,0.05)", borderRadius: 8,
+                                        border: "1px dashed rgba(255,71,87,0.3)", marginBottom: 10
+                                    }}>
+                                        <div style={{ color: "#ff4757", fontFamily: "Orbitron", fontSize: "0.8rem", marginBottom: 5 }}>⚡ VERIFICATION REQUIRED</div>
+                                        <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.7)", margin: "0 0 12px 0" }}>Your identity is not yet verified. Authenticate via Google to verify immediately or request a link.</p>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        setLoading(true);
+                                                        await linkGoogle();
+                                                        showToast("IDENTITY VERIFIED VIA GOOGLE", "ok");
+                                                    } catch (e) { showToast(e.message, "ng"); }
+                                                    finally { setLoading(false); }
+                                                }}
+                                                style={{ ...T.btnP, width: "100%", fontSize: "0.75rem", background: "#fff", color: "#000" }}
+                                            >
+                                                Verify via Google Link
+                                            </button>
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        await verifyEmail();
+                                                        showToast("VERIFICATION TRANSMISSION SENT", "ok");
+                                                    } catch (e) { showToast(e.message, "ng"); }
+                                                }}
+                                                style={{ ...T.btnG, width: "100%", fontSize: "0.75rem" }}
+                                            >
+                                                ✉️ Request Verification Email
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {user.providerData.some(p => p.providerId === 'password') && !user.isAnonymous && (
                                     <button
                                         onClick={async () => {
                                             try {
@@ -264,14 +375,16 @@ export function ProfilePage({ showToast }) {
                                     </button>
                                 )}
 
-                                {user.providerData?.[0]?.providerId === 'google.com' && (
+                                {user.providerData.some(p => p.providerId === 'google.com') && (
                                     <div style={{
-                                        padding: 15, background: "rgba(0,245,255,0.05)", borderRadius: 8,
-                                        border: "1px solid rgba(0,245,255,0.2)", fontSize: "0.8rem", color: "#00f5ff",
+                                        padding: 15, background: "rgba(0,245,255,0.1)", borderRadius: 8,
+                                        border: "1px solid rgba(0,245,255,0.3)", fontSize: "0.8rem", color: "#00f5ff",
                                         fontFamily: "Share Tech Mono"
                                     }}>
-                                        ACCOUNT LINKED VIA GOOGLE <br />
-                                        <span style={{ fontSize: "0.7rem", color: "rgba(255,255,255,0.5)" }}>Security is managed by your Google Identity provider.</span>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" width="20" alt="google" />
+                                            <span>ACCOUNT SECURED BY GOOGLE</span>
+                                        </div>
                                     </div>
                                 )}
                             </div>
