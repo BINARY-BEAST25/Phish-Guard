@@ -164,8 +164,18 @@ export function AILearningPage() {
     }, [selectedModule, supplementalResources]);
 
     const completedCount = MODULES.filter((m) => trainingProgress[m.id]?.completed).length;
+    const isModuleUnlocked = (moduleId) => {
+        const moduleIndex = MODULES.findIndex((m) => m.id === moduleId);
+        if (moduleIndex <= 0) return true;
+
+        const module = MODULES[moduleIndex];
+        if (level >= (module?.reqLevel || 1)) return true;
+
+        const previousModule = MODULES[moduleIndex - 1];
+        return Boolean(trainingProgress[previousModule?.id]?.completed);
+    };
     const selectedProgress = trainingProgress[selectedModule?.id] || null;
-    const selectedLocked = level < (selectedModule?.reqLevel || 1);
+    const selectedLocked = selectedModule ? !isModuleUnlocked(selectedModule.id) : false;
     const selectedCompleted = Boolean(selectedProgress?.completed);
     const selectedOpenedIds = new Set((selectedProgress?.openedResources || []).map((r) => r.id));
     const selectedOpenedCount = selectedProgress?.resourcesOpenedCount || 0;
@@ -182,11 +192,11 @@ export function AILearningPage() {
 
     useEffect(() => {
         if (!selectedModule) return;
-        if (level < selectedModule.reqLevel) {
-            const firstUnlocked = MODULES.find((m) => level >= m.reqLevel);
+        if (!isModuleUnlocked(selectedModule.id)) {
+            const firstUnlocked = MODULES.find((m) => isModuleUnlocked(m.id));
             if (firstUnlocked) setSelectedModuleId(firstUnlocked.id);
         }
-    }, [level, selectedModule]);
+    }, [level, selectedModule, trainingProgress]);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -419,9 +429,13 @@ export function AILearningPage() {
                         <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// MODULE LIST</div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                             {MODULES.map((module) => {
-                                const locked = level < module.reqLevel;
+                                const locked = !isModuleUnlocked(module.id);
                                 const done = Boolean(trainingProgress[module.id]?.completed);
                                 const active = selectedModuleId === module.id;
+                                const moduleIndex = MODULES.findIndex((m) => m.id === module.id);
+                                const previousDone = moduleIndex > 0
+                                    ? Boolean(trainingProgress[MODULES[moduleIndex - 1].id]?.completed)
+                                    : true;
 
                                 return (
                                     <button
@@ -447,7 +461,7 @@ export function AILearningPage() {
                                                 {module.icon} {module.name}
                                             </span>
                                             <span style={{ fontSize: "0.72rem", color: done ? "#00ff9d" : locked ? "var(--txt2)" : "#00f5ff" }}>
-                                                {done ? "Done" : locked ? `L${module.reqLevel}` : "Open"}
+                                                {done ? "Done" : locked ? (previousDone ? `L${module.reqLevel}` : "Prev") : "Open"}
                                             </span>
                                         </div>
                                         <div style={{ fontSize: "0.7rem", marginTop: 6, color: "var(--txt2)" }}>
@@ -479,7 +493,11 @@ export function AILearningPage() {
                                             Status
                                         </div>
                                         <div style={{ color: selectedCompleted ? "#00ff9d" : selectedLocked ? "#ff6d00" : "#00f5ff", fontWeight: 700 }}>
-                                            {selectedCompleted ? "Completed" : selectedLocked ? `Locked (Level ${selectedModule.reqLevel})` : "In Progress"}
+                                            {selectedCompleted
+                                                ? "Completed"
+                                                : selectedLocked
+                                                    ? `Locked (Complete previous module or reach Level ${selectedModule.reqLevel})`
+                                                    : "In Progress"}
                                         </div>
                                     </div>
                                 </div>

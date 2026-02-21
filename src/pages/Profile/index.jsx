@@ -7,7 +7,7 @@ import { db, storage } from '../../firebase/config';
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { BADGES, MODULES } from '../../constants';
-import { createClass, joinClass, leaveClass, getClassInfo, getUserActivityLogs, logPlatformAction } from '../../firebase/db';
+import { createClass, joinClass, leaveClass, getClassInfo, getUserActivityLogs, getUserWeeklyXPEarned, logPlatformAction } from '../../firebase/db';
 
 const INP = {
     width: "100%", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,245,255,0.2)",
@@ -24,6 +24,7 @@ export function ProfilePage({ showToast }) {
     const [joinCode, setJoinCode] = useState("");
     const [classInfo, setClassInfo] = useState(null);
     const [activityLogs, setActivityLogs] = useState([]);
+    const [weeklyXP, setWeeklyXP] = useState(0);
     const [logsLoading, setLogsLoading] = useState(false);
     const [formData, setFormData] = useState({ displayName: "", bio: "", specialization: "General Defense" });
 
@@ -56,12 +57,17 @@ export function ProfilePage({ showToast }) {
         Promise.all([
             getUserActivityLogs(user.uid, 12),
             logPlatformAction(user.uid, "PROFILE_VIEWED"),
+            getUserWeeklyXPEarned(user.uid, 7),
         ])
-            .then(([logs]) => {
-                if (mounted) setActivityLogs(logs);
+            .then(([logs, , weekly]) => {
+                if (!mounted) return;
+                setActivityLogs(logs);
+                setWeeklyXP(weekly?.totalXp || 0);
             })
             .catch(() => {
-                if (mounted) setActivityLogs([]);
+                if (!mounted) return;
+                setActivityLogs([]);
+                setWeeklyXP(0);
             })
             .finally(() => {
                 if (mounted) setLogsLoading(false);
@@ -116,6 +122,7 @@ export function ProfilePage({ showToast }) {
     const trainingProgress = profile?.trainingProgress || {};
     const completedModules = MODULES.filter((m) => trainingProgress[m.id]?.completed).length;
     const startedModules = Object.keys(trainingProgress).length;
+    const pendingModules = Math.max(0, MODULES.length - completedModules);
     const moduleProgressPct = MODULES.length ? Math.round((completedModules / MODULES.length) * 100) : 0;
 
     const formatLogTime = (timestamp) => {
@@ -170,6 +177,9 @@ export function ProfilePage({ showToast }) {
                                     <div style={{ color: "var(--txt2)", fontSize: "0.65rem" }}>CLASS</div>
                                 </div>
                             </div>
+                            <div style={{ marginTop: 10, fontSize: "0.66rem", color: "var(--txt2)", fontFamily: "Share Tech Mono, monospace" }}>
+                                Last 7 days XP: <span style={{ color: "#00f5ff" }}>{weeklyXP.toLocaleString()}</span>
+                            </div>
                             <div style={{ marginTop: 15 }}>
                                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.6rem", fontFamily: "Share Tech Mono", color: "var(--txt2)", marginBottom: 4 }}>
                                     <span>LEVEL {level} → {level + 1}</span>
@@ -202,9 +212,10 @@ export function ProfilePage({ showToast }) {
                     </div>
 
                     {/* ── RIGHT: Edit Form + Class + Security ── */}
-                    <div style={{ ...T.card, padding: 35 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
                         {/* EDIT FORM */}
+                        <div style={{ ...T.card, padding: 28 }}>
                         <form onSubmit={handleUpdate} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                             <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 4 }}>// AGENT CONFIGURATION</div>
                             <div>
@@ -252,9 +263,10 @@ export function ProfilePage({ showToast }) {
                                 {loading ? "SYNCHRONIZING..." : "UPDATE DOSSIER"}
                             </button>
                         </form>
+                        </div>
 
                         {/* ── CLASS / GROUP ── */}
-                        <div style={{ marginTop: 32, borderTop: "1px solid rgba(0,245,255,0.08)", paddingTop: 24 }}>
+                        <div style={{ ...T.card, padding: 28 }}>
                             <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// TRAINING CLASS / FRIEND GROUP</div>
 
                             {profile?.classCode ? (
@@ -301,7 +313,7 @@ export function ProfilePage({ showToast }) {
                                     <p style={{ color: "var(--txt2)", fontSize: "0.8rem", margin: 0 }}>
                                         Create a private group or join a friend's class to compete on a shared leaderboard.
                                     </p>
-                                    <div style={{ display: "flex", gap: 10 }}>
+                                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                                         <button
                                             disabled={loading}
                                             onClick={async () => {
@@ -321,7 +333,7 @@ export function ProfilePage({ showToast }) {
                                         </button>
                                     </div>
                                     {classMode === "join" && (
-                                        <div style={{ display: "flex", gap: 8 }}>
+                                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                                             <input
                                                 placeholder="6-char code e.g. AB3X9K"
                                                 value={joinCode}
@@ -351,9 +363,9 @@ export function ProfilePage({ showToast }) {
                         </div>
 
                         {/* ── SECURITY ── */}
-                        <div style={{ marginTop: 24, borderTop: "1px solid rgba(0,245,255,0.08)", paddingTop: 24 }}>
+                        <div style={{ ...T.card, padding: 28 }}>
                             <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// NEURAL ACADEMY TRACKING</div>
-                            <div style={{ ...T.card, padding: 16, background: "rgba(0,0,0,0.2)" }}>
+                            <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                                     <div style={{ fontSize: "0.78rem", color: "#e0f7fa" }}>
                                         {completedModules}/{MODULES.length} modules completed
@@ -365,41 +377,37 @@ export function ProfilePage({ showToast }) {
                                 <div style={{ height: 6, background: "rgba(255,255,255,0.07)", borderRadius: 4, overflow: "hidden", marginBottom: 10 }}>
                                     <div style={{ width: `${moduleProgressPct}%`, height: "100%", background: "linear-gradient(90deg,#00f5ff,#00ff9d)" }} />
                                 </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                                    <div style={{ padding: "10px 12px", border: "1px solid rgba(0,255,157,0.2)", borderRadius: 6, background: "rgba(0,255,157,0.06)" }}>
+                                        <div style={{ color: "#00ff9d", fontSize: "0.66rem", fontFamily: "Share Tech Mono" }}>COMPLETED</div>
+                                        <div style={{ color: "#e0f7fa", fontSize: "1.1rem", fontFamily: "Orbitron, sans-serif", fontWeight: 700 }}>{completedModules}</div>
+                                    </div>
+                                    <div style={{ padding: "10px 12px", border: "1px solid rgba(255,109,0,0.2)", borderRadius: 6, background: "rgba(255,109,0,0.06)" }}>
+                                        <div style={{ color: "#ffb36d", fontSize: "0.66rem", fontFamily: "Share Tech Mono" }}>PENDING</div>
+                                        <div style={{ color: "#e0f7fa", fontSize: "1.1rem", fontFamily: "Orbitron, sans-serif", fontWeight: 700 }}>{pendingModules}</div>
+                                    </div>
+                                </div>
                                 <div style={{ fontSize: "0.67rem", color: "var(--txt2)", marginBottom: 12 }}>
                                     Started modules: {startedModules}
                                 </div>
-                                <div style={{ display: "grid", gap: 8, maxHeight: 180, overflowY: "auto", paddingRight: 4 }}>
-                                    {MODULES.map((m) => {
-                                        const unlocked = level >= m.reqLevel;
-                                        const done = Boolean(trainingProgress[m.id]?.completed);
-                                        const active = !done && Boolean(trainingProgress[m.id]);
-                                        const opened = trainingProgress[m.id]?.resourcesOpenedCount || 0;
-                                        const totalResources = trainingProgress[m.id]?.resourcesTotalCount || m.resources?.length || 0;
-                                        const statusText = done
-                                            ? "Completed"
-                                            : active
-                                                ? totalResources > 0
-                                                    ? `${opened}/${totalResources} opened`
-                                                    : "In Progress"
-                                                : unlocked
-                                                    ? "Not Started"
-                                                    : `Locked L${m.reqLevel}`;
-                                        const statusColor = done ? "#00ff9d" : active ? "#00f5ff" : unlocked ? "var(--txt2)" : "#ff6d00";
-
-                                        return (
-                                            <div key={m.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: "0.72rem", borderBottom: "1px solid rgba(255,255,255,0.04)", paddingBottom: 6 }}>
-                                                <span style={{ color: "#e0f7fa" }}>{m.icon} {m.name}</span>
-                                                <span style={{ color: statusColor, fontFamily: "Share Tech Mono", whiteSpace: "nowrap" }}>{statusText}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                {pendingModules > 0 ? (
+                                    <button
+                                        onClick={() => { window.location.hash = "/ai-learning"; }}
+                                        style={{ ...T.btnHP, width: "100%", justifyContent: "center", fontSize: "0.75rem" }}
+                                    >
+                                        Continue in Neural Academy
+                                    </button>
+                                ) : (
+                                    <div style={{ fontSize: "0.72rem", color: "#00ff9d", fontFamily: "Share Tech Mono" }}>
+                                        All modules completed.
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        <div style={{ marginTop: 24, borderTop: "1px solid rgba(0,245,255,0.08)", paddingTop: 24 }}>
+                        <div style={{ ...T.card, padding: 28 }}>
                             <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// RECENT ACTIVITY LOGS</div>
-                            <div style={{ ...T.card, padding: 16, background: "rgba(0,0,0,0.2)", maxHeight: 220, overflowY: "auto" }}>
+                            <div style={{ maxHeight: 220, overflowY: "auto" }}>
                                 {logsLoading && (
                                     <div style={{ color: "var(--txt2)", fontSize: "0.75rem" }}>Loading logs...</div>
                                 )}
@@ -417,7 +425,7 @@ export function ProfilePage({ showToast }) {
                             </div>
                         </div>
 
-                        <div style={{ marginTop: 32, borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: 24 }}>
+                        <div style={{ ...T.card, padding: 28 }}>
                             <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 16 }}>// SECURITY &amp; AUTHENTICATION</div>
 
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -425,7 +433,7 @@ export function ProfilePage({ showToast }) {
                                     <div style={{ padding: 15, background: "rgba(255,215,0,0.05)", borderRadius: 8, border: "1px dashed rgba(255,215,0,0.3)" }}>
                                         <div style={{ color: "#ffd700", fontFamily: "Orbitron", fontSize: "0.8rem", marginBottom: 5 }}>⚠️ GUEST PROFILE ALERT</div>
                                         <p style={{ fontSize: "0.75rem", color: "rgba(255,255,255,0.7)", margin: "0 0 12px" }}>Link your account to save XP and progress permanently.</p>
-                                        <div style={{ display: "flex", gap: 10 }}>
+                                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                                             <button
                                                 onClick={async () => {
                                                     try { setLoading(true); await linkGoogle(); showToast("LINKED TO GOOGLE", "ok"); }

@@ -10,7 +10,7 @@
 import {
     doc, getDoc, setDoc, updateDoc, addDoc, getDocs, deleteDoc, writeBatch,
     collection, query, orderBy, limit, where,
-    serverTimestamp, increment, arrayUnion,
+    serverTimestamp, increment, arrayUnion, getCountFromServer,
 } from "firebase/firestore";
 
 import { db } from "./config";
@@ -242,6 +242,28 @@ export async function getLeaderboard(topN = 50) {
     return snap.docs.map((d, i) => ({ rank: i + 1, id: d.id, ...d.data() }));
 }
 
+/** Get a user's global rank by XP and total user count. */
+export async function getUserGlobalRankStats(uid) {
+    if (!uid) return { rank: null, totalUsers: 0, xp: 0 };
+
+    const userSnap = await getDoc(doc(db, "users", uid));
+    if (!userSnap.exists()) return { rank: null, totalUsers: 0, xp: 0 };
+
+    const userXp = Number.isFinite(userSnap.data()?.xp) ? userSnap.data().xp : 0;
+    const usersCol = collection(db, "users");
+
+    const [totalRes, higherRes] = await Promise.all([
+        getCountFromServer(usersCol),
+        getCountFromServer(query(usersCol, where("xp", ">", userXp))),
+    ]);
+
+    const totalUsers = totalRes.data().count || 0;
+    const higherCount = higherRes.data().count || 0;
+    const rank = totalUsers > 0 ? higherCount + 1 : null;
+
+    return { rank, totalUsers, xp: userXp };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // STREAK TRACKING
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -442,6 +464,44 @@ export async function getUserActivityLogs(uid, topN = 25) {
             return bMs - aMs;
         })
         .slice(0, topN);
+}
+
+/** Get XP earned in the last N days from canonical XP-granting activity logs. */
+export async function getUserWeeklyXPEarned(uid, days = 7) {
+    if (!uid) return { totalXp: 0, events: 0 };
+
+    const safeDays = Math.max(1, Math.min(30, Number.isFinite(days) ? days : 7));
+    const since = new Date(Date.now() - safeDays * 24 * 60 * 60 * 1000);
+    const canonicalXpActions = new Set([
+        "QUIZ_ANSWERED",
+        "SIMULATION_SUBMITTED",
+        "TRAINING_MODULE_COMPLETED",
+    ]);
+
+    const q = query(
+        collection(db, "activity_logs"),
+        where("uid", "==", uid),
+        limit(400)
+    );
+    const snap = await getDocs(q);
+
+    let totalXp = 0;
+    let events = 0;
+
+    snap.docs.forEach((d) => {
+        const row = d.data();
+        const when = row?.timestamp?.toDate?.();
+        if (!when || when < since) return;
+        if (!canonicalXpActions.has(row?.action)) return;
+
+        const xp = Number(row?.metadata?.xpEarned ?? 0);
+        if (!Number.isFinite(xp) || xp <= 0) return;
+
+        totalXp += xp;
+        events += 1;
+    });
+
+    return { totalXp, events };
 }
 
 /** Purge all user data from Firestore. */

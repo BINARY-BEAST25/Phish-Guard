@@ -43,7 +43,7 @@ function normalizeQuizQuestion(raw, idx) {
 
 
 // ─── QUIZ PAGE ────────────────────────────────────────────────────────────────
-export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast }) {
+export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
   const [qIdx, setQIdx] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [selected, setSelected] = useState(null);
@@ -283,16 +283,6 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button style={T.btnG} onClick={() => setPage("leaderboard")}>
-              🏆 Leaderboard
-            </button>
-            <button style={T.btnG} onClick={() => setPage("simulator")}>
-              Simulator
-            </button>
-            <button style={T.btnG} onClick={() => setPage("ai-learning")}>
-              Academy
-            </button>
-
             {/* SVG timer ring */}
             <div style={{ position: "relative", width: 48, height: 48 }}>
               <svg

@@ -274,8 +274,6 @@ export function SimulatorPage({ showToast }) {
           {!submitted && <button style={T.btnHP} onClick={submit}>Submit Analysis</button>}
           {submitted && <button style={T.btnP} onClick={nextStage}>Next Stage</button>}
           {!revealed && <button style={T.btnG} onClick={() => setRevealed(true)}>Help & Hints</button>}
-          <button style={T.btnG} onClick={() => { window.location.hash = "/quiz"; }}>Open Quiz</button>
-          <button style={T.btnG} onClick={() => { window.location.hash = "/ai-learning"; }}>Open Academy</button>
         </div>
       </div>
     </div>

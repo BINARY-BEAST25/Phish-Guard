@@ -1,18 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { T } from '../../styles';
 import { BADGES, MODULES } from '../../constants';
 import { useAuth, useUser } from "../../context";
 import { PageHeader, XPBar } from "../../components";
+import { getUserGlobalRankStats, getUserWeeklyXPEarned } from "../../firebase";
 
-const ACTIVITY_STATS = [
-  ["Quizzes Completed", "23", "#00f5ff"],
-  ["Simulations Done", "8", "#00ff9d"],
-  ["Streak Record", "12 days", "#ff6d00"],
-  ["Community Flags", "15", "#d500f9"],
-];
-
-function dotColor(s) { return s === "done" ? "#00ff9d" : s === "active" ? "#00f5ff" : "var(--txt2)"; }
-function badgeText(s) { return s === "done" ? "✓ DONE" : s === "active" ? "→ ACTIVE" : "🔒 LOCKED"; }
 
 // ─── CANVAS: MATRIX RAIN ─────────────────────────────────────────────────────
 
@@ -45,25 +37,65 @@ function SectionLabel({ children }) {
 export function ProgressPage({ xp, level, xpPct, xpToNext }) {
   const { user } = useAuth();
   const { profile } = useUser();
+  const [rankStats, setRankStats] = useState({ rank: null, totalUsers: 0, xp: 0 });
+  const [rankLoading, setRankLoading] = useState(false);
+  const [weeklyXP, setWeeklyXP] = useState(0);
 
   const quizAttempts = profile?.quizAttempts || profile?.quizzesCompleted || 0;
   const simAttempts = profile?.simulationsDone || 0;
   const emailsFlagged = profile?.emailsFlagged || profile?.communityFlags || 0;
-  const moduleCompletions = profile?.trainingModulesCompleted || 0;
+  const trainingProgress = profile?.trainingProgress || {};
+  const moduleCompletions = MODULES.filter((m) => trainingProgress[m.id]?.completed).length;
+  const pendingModules = Math.max(0, MODULES.length - moduleCompletions);
+  const moduleCompletionPct = MODULES.length ? Math.round((moduleCompletions / MODULES.length) * 100) : 0;
+  const ACTIVITY_STATS = [
+    ["Quizzes Completed", quizAttempts, "#00f5ff"],
+    ["Simulations Run", simAttempts, "#ff6d00"],
+    ["Training Completion", `${moduleCompletionPct}%`, "#00ff9d"],
+    ["Pending Modules", pendingModules, "#d500f9"],
+  ];
   const quizAccuracy =
     quizAttempts > 0
       ? `${Math.round(((profile?.quizCorrect || 0) / quizAttempts) * 100)}%`
       : "0%";
+  const rankLabel = rankLoading ? "..." : (rankStats.rank ? `#${rankStats.rank}` : "--");
+  const rankPercentile = rankStats.rank && rankStats.totalUsers
+    ? Math.max(1, Math.round((rankStats.rank / rankStats.totalUsers) * 100))
+    : null;
+  const rankSubLabel = rankLoading
+    ? "Calculating..."
+    : rankPercentile
+      ? `Top ${rankPercentile}% worldwide`
+      : "Rank unavailable";
 
-  const ACTIVITY_STATS = [
-    ["Quizzes Completed", quizAttempts, "#00f5ff"],
-    ["Simulations Done", simAttempts, "#00ff9d"],
-    ["Modules Completed", moduleCompletions, "#ffd600"],
-    ["Emails Flagged", emailsFlagged, "#d500f9"],
-  ];
-
-  const agentName = profile?.displayName || user?.displayName || "Guest Agent";
+    const agentName = profile?.displayName || user?.displayName || "Guest Agent";
   const agentInitials = agentName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user?.uid) return;
+
+    setRankLoading(true);
+    Promise.all([
+      getUserGlobalRankStats(user.uid),
+      getUserWeeklyXPEarned(user.uid, 7),
+    ])
+      .then(([rankData, weeklyData]) => {
+        if (!mounted) return;
+        setRankStats(rankData);
+        setWeeklyXP(weeklyData?.totalXp || 0);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setRankStats({ rank: null, totalUsers: 0, xp: 0 });
+        setWeeklyXP(0);
+      })
+      .finally(() => {
+        if (mounted) setRankLoading(false);
+      });
+
+    return () => { mounted = false; };
+  }, [user?.uid, xp]);
 
   if (!user) {
     return (
@@ -159,13 +191,13 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
               fontFamily: "Orbitron, sans-serif", fontSize: "2.4rem", fontWeight: 800,
               color: "#ffd600", textShadow: "0 0 30px rgba(255,214,0,0.5)", lineHeight: 1,
             }}>
-              #47
+              {rankLabel}
             </div>
             <div style={{
               fontFamily: "Share Tech Mono, monospace", fontSize: ".68rem",
               color: "var(--txt2)", marginTop: 4,
             }}>
-              Top 5% worldwide
+              {rankSubLabel}
             </div>
           </div>
         </div>
@@ -300,92 +332,42 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
               })()}
             </div>
 
-            {/* Learning map */}
+            {/* Training summary */}
             <div style={{ ...T.card, padding: 28 }}>
-              <SectionLabel>NEURAL TRAINING MODULES</SectionLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {MODULES.map((m, i) => {
-                  const userModule = profile?.trainingProgress?.[m.id];
-                  const unlocked = level >= m.reqLevel;
-                  const opened = userModule?.resourcesOpenedCount || 0;
-                  const totalResources = userModule?.resourcesTotalCount || m.resources?.length || 0;
-
-                  let status = "locked";
-                  let subText = `Unlock at Level ${m.reqLevel}`;
-                  let progressPct = 0;
-
-                  if (unlocked && userModule?.completed) {
-                    status = "done";
-                    subText = "Completed";
-                    progressPct = 100;
-                  } else if (unlocked && userModule) {
-                    status = "active";
-                    subText = totalResources > 0
-                      ? `${opened}/${totalResources} resources explored`
-                      : "In Progress";
-                    progressPct = userModule?.progressPct || 35;
-                  } else if (unlocked) {
-                    status = "active";
-                    subText = "Not started";
-                    progressPct = 0;
-                  }
-
-                  const dc = dotColor(status);
-                  const isLocked = status === "locked";
-
-                  return (
-                    <div
-                      key={m.id}
-                      style={{
-                        padding: "16px",
-                        background: isLocked ? "rgba(0,0,0,0.2)" : "rgba(0,245,255,0.03)",
-                        border: `1px solid ${isLocked ? "rgba(255,255,255,0.05)" : "rgba(0,245,255,0.15)"}`,
-                        borderRadius: 8,
-                        animation: `statIn .4s ${i * 0.07}s ease both`,
-                        position: "relative",
-                        overflow: "hidden"
-                      }}
-                    >
-                      {/* Side Indicator */}
-                      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: dc }} />
-
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                          <span style={{ fontSize: "1.4rem", opacity: isLocked ? 0.3 : 1 }}>{m.icon}</span>
-                          <div>
-                            <div style={{ fontSize: "1rem", fontWeight: 700, color: isLocked ? "var(--txt2)" : "#fff" }}>{m.name}</div>
-                            <div style={{ fontSize: "0.7rem", color: dc, fontFamily: "Share Tech Mono" }}>{isLocked ? "ACCESS RESTRICTED" : subText}</div>
-                          </div>
-                        </div>
-                        <span style={{
-                          fontFamily: "Share Tech Mono, monospace", fontSize: ".65rem",
-                          color: dc, padding: "3px 10px", borderRadius: 4,
-                          border: `1px solid ${dc}80`, background: `${dc}15`
-                        }}>
-                          {badgeText(status)}
-                        </span>
-                      </div>
-
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                        <div style={{ fontSize: "0.65rem", background: "rgba(255,255,255,0.05)", padding: "3px 8px", borderRadius: 4, color: "#90a4ae" }}>⏱ {m.time}</div>
-                        <div style={{ fontSize: "0.65rem", background: "rgba(255,255,255,0.05)", padding: "3px 8px", borderRadius: 4, color: "#90a4ae" }}>📊 {m.diff}</div>
-                        {m.topics?.slice(0, 2).map(t => (
-                          <div key={t} style={{ fontSize: "0.65rem", background: "rgba(0,245,255,0.05)", padding: "3px 8px", borderRadius: 4, color: "#00f5ff" }}># {t}</div>
-                        ))}
-                      </div>
-
-                      {/* Progress bar */}
-                      <div style={{ height: 3, background: "rgba(255,255,255,0.05)", borderRadius: 2, position: "relative" }}>
-                        <div style={{
-                          position: "absolute", left: 0, top: 0, height: "100%",
-                          width: `${progressPct}%`,
-                          background: dc, boxShadow: `0 0 10px ${dc}`
-                        }} />
-                      </div>
-                    </div>
-                  );
-                })}
+              <SectionLabel>NEURAL TRAINING STATUS</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid rgba(0,255,157,.2)", background: "rgba(0,255,157,.06)" }}>
+                  <div style={{ color: "#00ff9d", fontFamily: "Share Tech Mono, monospace", fontSize: ".68rem", letterSpacing: ".08em" }}>
+                    COMPLETED
+                  </div>
+                  <div style={{ color: "#e0f7fa", fontFamily: "Orbitron, sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+                    {moduleCompletions}
+                  </div>
+                </div>
+                <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid rgba(255,109,0,.2)", background: "rgba(255,109,0,.06)" }}>
+                  <div style={{ color: "#ffb36d", fontFamily: "Share Tech Mono, monospace", fontSize: ".68rem", letterSpacing: ".08em" }}>
+                    PENDING
+                  </div>
+                  <div style={{ color: "#e0f7fa", fontFamily: "Orbitron, sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+                    {pendingModules}
+                  </div>
+                </div>
               </div>
+              <div style={{ color: "var(--txt2)", fontSize: ".78rem", marginBottom: 12 }}>
+                {moduleCompletionPct}% overall completion ({moduleCompletions}/{MODULES.length})
+              </div>
+              {pendingModules > 0 ? (
+                <button
+                  onClick={() => { window.location.hash = "/ai-learning"; }}
+                  style={{ ...T.btnHP, width: "100%", justifyContent: "center" }}
+                >
+                  Complete Modules in Neural Academy
+                </button>
+              ) : (
+                <div style={{ color: "#00ff9d", fontFamily: "Share Tech Mono, monospace", fontSize: ".78rem" }}>
+                  All modules completed.
+                </div>
+              )}
             </div>
           </div>
 
@@ -456,7 +438,7 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
                 marginTop: 12, fontFamily: "Share Tech Mono, monospace",
                 fontSize: ".72rem", color: "var(--txt2)", textAlign: "right",
               }}>
-                This week: <span style={{ color: "#00f5ff" }}>247 XP earned</span>
+                Last 7 days: <span style={{ color: "#00f5ff" }}>{weeklyXP.toLocaleString()} XP earned</span>
               </div>
             </div>
 
@@ -510,3 +492,5 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
     </div >
   );
 }
+
+

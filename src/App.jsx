@@ -17,8 +17,7 @@ import {
   ProfilePage, AILearningPage
 } from "./pages";
 import { LoginPage } from "./pages";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { UserProvider, useUser } from "./context/UserContext";
+import { AuthProvider, UserProvider, useAuth, useUser } from "./context";
 
 // ─── AMBIENT BACKGROUND ORBS ─────────────────────────────────────────────────
 const ORBS = [
