@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { T } from '../../styles';
+import { useGemini } from "../../hooks";
 
 
 const TUTORIAL_STEPS = [
@@ -58,7 +59,7 @@ export function AILearningPage() {
         { role: "ai", text: "Welcome, Agent. I am Finn-AI. My neural network is online and ready. How can I assist your training today?" }
     ]);
     const [input, setInput] = useState("");
-    const [loading, setLoading] = useState(false);
+    const { callGemini, loading } = useGemini();
     const [tutorialStep, setTutorialStep] = useState(0);
     const chatEndRef = useRef(null);
 
@@ -70,77 +71,6 @@ export function AILearningPage() {
         scrollToBottom();
     }, [messages]);
 
-    const callGemini = async (prompt) => {
-        const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-        if (!API_KEY) {
-            return "ERROR: GEMINI_API_KEY NOT FOUND. Please initialize neural link in .env file.";
-        }
-
-        // Ordered fallback list for maximum uptime
-        const MODELS = [
-            "gemini-1.5-pro",          // Primary Heavy Compute
-            "gemini-2.0-flash",        // High Speed Fallback (using existing stable/preview names likely to work)
-            "gemini-1.5-flash",        // Efficient Backup
-            "gemini-pro-vision"        // Last Resort
-        ];
-
-        // The user specifically requested these (using them as fallback if above naming style fails or as preferred sequence)
-        const preferredModels = [
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "gemini-3-flash-preview"
-        ];
-
-        // High-Fidelity Sequence as requested by Agent
-        const trialSequence = [
-            "gemini-3.1-pro-preview",
-            "gemini-3-pro-preview",
-            "gemini-3-flash-preview",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "gemini-1.5-pro",     // Proven stable node
-            "gemini-1.5-flash"    // High-speed fallback
-        ];
-
-        for (const modelId of trialSequence) {
-            try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${API_KEY}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: `You are Finn-AI, a high-level cybersecurity neural advisor for PhishGuard. 
-                                Your mission is to provide deep technical analysis on phishing, social engineering, and defense strategies.
-                                Keep responses concise, formatted for a terminal interface (use 🟢, 🔴, 📡 emojis), and authoritative.
-                                
-                                Current User Intelligence Request: ${prompt}`
-                            }]
-                        }]
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.error) {
-                    // If rate limited or model not found, try next in sequence
-                    if (data.error.code === 429 || data.error.status?.includes("RESOURCE_EXHAUSTED") || data.error.code === 404) {
-                        console.warn(`Neural Node ${modelId} unavailable. Shifting frequencies...`);
-                        continue;
-                    }
-                    return `NEURAL_FAILURE: ${data.error.message}`;
-                }
-
-                return data.candidates[0].content.parts[0].text;
-            } catch (err) {
-                console.error(`Link failure on ${modelId}:`, err);
-                continue; // Try next model on network error
-            }
-        }
-
-        return "CRITICAL_FAILURE: All neural nodes are currently over-saturated. Please stand by for bandwidth reclamation.";
-    };
-
     const handleSend = async (e) => {
         e.preventDefault();
         if (!input.trim() || loading) return;
@@ -151,11 +81,9 @@ export function AILearningPage() {
         const userMsg = { role: "user", text: input };
         setMessages(prev => [...prev, userMsg]);
         setInput("");
-        setLoading(true);
 
         const aiText = await callGemini(input);
         setMessages(prev => [...prev, { role: "ai", text: aiText }]);
-        setLoading(false);
     };
 
     return (
@@ -191,7 +119,7 @@ export function AILearningPage() {
                         {view === "chat" ? (
                             <>
                                 <div style={{ padding: 20, borderBottom: "1px solid rgba(0,245,255,0.1)", display: "flex", alignItems: "center", gap: 10 }}>
-                                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: loading ? "#ff1744" : "#00ff9d", boxShadow: `0 0 10px ${loading ? "#ff1744" : "#00ff9d"}`, animation: loading ? "pulse 1s infinite" : "none" }}></div>
+                                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: loading ? "#ff1744" : "#00ff9d", boxShadow: `0 0 10px ${loading ? "#ff1744" : "#00ff9d"}`, animation: loading ? "cyberBlink 1.5s infinite" : "none" }}></div>
                                     <span style={{ fontFamily: "Orbitron", fontSize: "0.85rem", color: "#00f5ff" }}>FINN-AI NEURAL LINK [{loading ? "PROCESSING" : "READY"}]</span>
                                 </div>
 
@@ -327,6 +255,10 @@ export function AILearningPage() {
             </section>
             <style>{`
         .res-card:hover { border-color: rgba(0,245,255,0.5) !important; transform: translateX(-5px); background: rgba(0,245,255,0.03) !important; }
+        @keyframes cyberBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
       `}</style>
         </div>
     );
