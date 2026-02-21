@@ -114,6 +114,11 @@ export const GLOBAL_CSS = `
     100% { transform: translateX(-100%); }
   }
 
+  @keyframes glowFlow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+
   /* Responsive Utilities */
   @media (max-width: 768px) {
     .hide-mobile { display: none !important; }
