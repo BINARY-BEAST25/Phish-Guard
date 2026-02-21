@@ -9,6 +9,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import {
     onAuthChange,
+    completeRedirectSignIn,
     signInWithGoogle,
     signInEmail,
     registerEmail,
@@ -42,6 +43,12 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        completeRedirectSignIn().catch((error) => {
+            if (import.meta.env.DEV) {
+                console.warn("Redirect sign-in resolution failed:", error?.code || error?.message);
+            }
+        });
+
         const unsub = onAuthChange((firebaseUser) => {
             setUser(firebaseUser);
             setLoading(false);

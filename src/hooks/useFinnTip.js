@@ -41,7 +41,7 @@ export function useFinnTip() {
     window.speechSynthesis.cancel();
     isSpeakingRef.current = false;
 
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new window.SpeechSynthesisUtterance(text);
     const voices = window.speechSynthesis.getVoices();
     const femaleVoice = pickVoice(voices);
 

@@ -70,7 +70,8 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
       ? `Top ${rankPercentile}% worldwide`
       : "Rank unavailable";
 
-    const agentName = profile?.displayName || user?.displayName || "Guest Agent";
+  const fallbackAgentName = user?.uid ? `Agent_${user.uid.slice(0, 5).toUpperCase()}` : "Guest Agent";
+  const agentName = profile?.displayName || fallbackAgentName;
   const agentInitials = agentName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
 
   useEffect(() => {

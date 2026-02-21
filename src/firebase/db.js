@@ -62,12 +62,11 @@ async function safeFirestoreWrite(op, label = "firestore write") {
 export async function createOrUpdateUser(firebaseUser) {
     const ref = doc(db, "users", firebaseUser.uid);
     const snap = await getDoc(ref);
+    const anonymousName = `Agent_${firebaseUser.uid.slice(0, 5).toUpperCase()}`;
+    const anonymousPhoto = `https://api.dicebear.com/7.x/identicon/svg?seed=${firebaseUser.uid}`;
 
     if (!snap.exists()) {
         // Enforce anonymity by default - don't leak Google Name/Image
-        const anonymousName = `Agent_${firebaseUser.uid.slice(0, 5).toUpperCase()}`;
-        const anonymousPhoto = `https://api.dicebear.com/7.x/identicon/svg?seed=${firebaseUser.uid}`;
-
         await setDoc(ref, {
             uid: firebaseUser.uid,
             displayName: anonymousName,
@@ -87,8 +86,28 @@ export async function createOrUpdateUser(firebaseUser) {
             createdAt: serverTimestamp(),
         });
     } else {
-        // Refresh last-active timestamp only
-        await updateDoc(ref, { lastActive: serverTimestamp() });
+        // Refresh last-active and auto-sanitize legacy provider profile leaks.
+        const existing = snap.data() || {};
+        const updates = { lastActive: serverTimestamp() };
+
+        const providerDisplayName = firebaseUser.displayName || "";
+        const providerEmail = firebaseUser.email || "";
+        const currentDisplayName = String(existing.displayName || "");
+        const shouldSanitizeName = !currentDisplayName
+            || (providerDisplayName && currentDisplayName === providerDisplayName)
+            || (providerEmail && currentDisplayName === providerEmail);
+
+        const providerPhotoURL = firebaseUser.photoURL || "";
+        const currentPhotoURL = String(existing.photoURL || "");
+        const looksLikeGooglePhoto = currentPhotoURL.includes("googleusercontent.com");
+        const shouldSanitizePhoto = !currentPhotoURL
+            || looksLikeGooglePhoto
+            || (providerPhotoURL && currentPhotoURL === providerPhotoURL);
+
+        if (shouldSanitizeName) updates.displayName = anonymousName;
+        if (shouldSanitizePhoto) updates.photoURL = anonymousPhoto;
+
+        await updateDoc(ref, updates);
     }
 }
 

@@ -4,13 +4,16 @@ import { LB_DATA, BADGES } from '../../constants';
 import { db } from '../../firebase/config';
 import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 import { useAuth, useUser } from "../../context";
+import { getClassLeaderboard } from "../../firebase/db";
 
 const TABS = ["🌍 Global", "👥 This Week", "🏫 Class"];
 
 export function LeaderboardPage() {
   const [tab, setTab] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
+  const [classLeaderboard, setClassLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [classLoading, setClassLoading] = useState(false);
   const { user } = useAuth();
   const { profile } = useUser();
 
@@ -33,6 +36,39 @@ export function LeaderboardPage() {
     return () => unsub();
   }, [user]);
 
+  useEffect(() => {
+    let active = true;
+
+    if (tab !== 2 || !profile?.classCode) {
+      setClassLeaderboard([]);
+      setClassLoading(false);
+      return () => { active = false; };
+    }
+
+    setClassLoading(true);
+    getClassLeaderboard(profile.classCode)
+      .then((rows) => {
+        if (!active) return;
+        setClassLeaderboard(
+          rows.map((row, idx) => ({
+            ...row,
+            rank: row.rank || idx + 1,
+            id: row.id || row.uid || `class-row-${idx}`,
+            isYou: (row.uid || row.id) === user?.uid,
+          }))
+        );
+      })
+      .catch(() => {
+        if (!active) return;
+        setClassLeaderboard([]);
+      })
+      .finally(() => {
+        if (active) setClassLoading(false);
+      });
+
+    return () => { active = false; };
+  }, [tab, profile?.classCode, user?.uid]);
+
   const myRank = leaderboard.find(u => u.isYou)?.rank || "--";
   const myXP = profile?.xp || 0;
   const myStreak = profile?.streak || 0;
@@ -53,6 +89,8 @@ export function LeaderboardPage() {
       (b.req.type === 'streak' && (u.streak || 0) >= b.req.value)
     ).map(b => b.icon);
   }
+
+  const activeRows = tab === 2 ? classLeaderboard : leaderboard;
 
   return (
     <div style={{
@@ -174,13 +212,27 @@ export function LeaderboardPage() {
         </div>
 
         {/* ── Table ── */}
-        {tab === 2 && !profile?.classId ? (
+        {tab !== 2 && loading ? (
+          <div style={{ ...T.card, padding: "40px 20px", textAlign: "center" }}>
+            <div style={{ color: "var(--txt2)", fontSize: "0.9rem" }}>Loading leaderboard...</div>
+          </div>
+        ) : tab === 2 && classLoading ? (
+          <div style={{ ...T.card, padding: "40px 20px", textAlign: "center" }}>
+            <div style={{ color: "var(--txt2)", fontSize: "0.9rem" }}>Loading class leaderboard...</div>
+          </div>
+        ) : tab === 2 && !profile?.classCode ? (
           <div style={{ ...T.card, padding: "80px 20px", textAlign: "center", background: "rgba(0,10,20,0.6)", border: "1px dashed rgba(0,245,255,0.3)" }}>
             <div style={{ fontSize: "3rem", marginBottom: 16, opacity: 0.8 }}>🏫</div>
             <h3 style={{ fontFamily: "Orbitron, sans-serif", fontSize: "1.2rem", color: "#e0f7fa", marginBottom: 12 }}>No Academy Assigned</h3>
             <p style={{ color: "var(--txt2)", fontSize: "0.9rem", maxWidth: 400, margin: "0 auto 24px", lineHeight: 1.6 }}>
               You are not currently enrolled in any class or operational group. Join a class to compete on your private leaderboard.
             </p>
+          </div>
+        ) : tab === 2 && activeRows.length === 0 ? (
+          <div style={{ ...T.card, padding: "40px 20px", textAlign: "center" }}>
+            <div style={{ color: "var(--txt2)", fontSize: "0.9rem" }}>
+              No class ranking data yet. Complete quiz/simulator activities to populate it.
+            </div>
           </div>
         ) : (
           <div style={{ ...T.card, overflow: "hidden" }}>
@@ -215,7 +267,7 @@ export function LeaderboardPage() {
                 </tr>
               </thead>
               <tbody>
-                {leaderboard.map((u, rowIdx) => {
+                {activeRows.map((u, rowIdx) => {
                   const rankColor =
                     u.rank === 1 ? "#ffd600" :
                       u.rank === 2 ? "#b0bec5" :

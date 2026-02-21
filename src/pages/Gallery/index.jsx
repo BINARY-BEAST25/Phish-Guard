@@ -62,9 +62,10 @@ function SubmitModal({ onClose, showToast }) {
       }
 
       // 2. Add entry to Firestore
+      const anonymousName = `Agent_${user.uid.slice(0, 5).toUpperCase()}`;
       await addGalleryEntry({
         uid: user.uid,
-        displayName: user.displayName || "Agent",
+        displayName: anonymousName,
         title: formData.title,
         description: formData.description,
         imageURL,

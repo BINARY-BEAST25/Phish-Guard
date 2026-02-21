@@ -26,6 +26,10 @@ export default function LoginPage({ onClose }) {
                 setError("Invalid email or password. Please try again.");
             } else if (e.code === "auth/weak-password") {
                 setError("Password is too weak. Please use at least 6 characters.");
+            } else if (e.code === "auth/network-request-failed") {
+                setError("Network error while contacting Firebase. Check connection and try again.");
+            } else if (String(e.message || "").includes("Pending promise was never set")) {
+                setError("Sign-in popup failed to complete. Please retry and allow the redirect flow.");
             } else {
                 setError(e.message);
             }
