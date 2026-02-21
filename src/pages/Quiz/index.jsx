@@ -73,7 +73,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
   useEffect(() => {
     startTimer();
     return () => clearInterval(timerRef.current);
-  }, [qIdx]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [qIdx]);
 
   // ── Adaptive Logic ────────────────────────────────────────────────────────
   const [currentDiff, setCurrentDiff] = useState("easy");
