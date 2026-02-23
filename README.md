@@ -1,6 +1,6 @@
 # 🛡️ PhishGuard — Advanced Phishing Awareness & Defense Platform
 
-> **React 18 · Vite 6 · Firebase · Finn-AI Neural Engine · Cyber Carnival Hackathon**
+> **React 18 · Vite 7 · Firebase · Finn-AI Neural Engine · Cyber Carnival Hackathon**
 
 PhishGuard is a high-fidelity, gamified phishing awareness and training platform. Built with an aggressive "Cyber-Tactical" aesthetic, it transforms traditional security training into an immersive experience featuring real-time threat simulations, adaptive learning algorithms, and an integrated AI advisor.
 
@@ -31,7 +31,7 @@ A community-driven threat intelligence hub where users submit and analyze real-w
 ## 🛠️ Tech Stack
 
 - **Frontend:** React 18 (Hooks, Context API)
-- **Build System:** Vite 6
+- **Build System:** Vite 7
 - **Database:** Firebase Firestore (Real-time sync)
 - **Authentication:** Firebase Auth (Google + Credentials + Guest mode)
 - **Storage:** Firebase Storage (Avatar synchronization)
@@ -45,8 +45,8 @@ A community-driven threat intelligence hub where users submit and analyze real-w
 
 ### 1. Initialize Local Environment
 ```bash
-git clone https://github.com/Binary-Beast25/phish-guard.git
-cd phish-guard
+git clone https://github.com/BINARY-BEAST25/Phish-Guard.git
+cd Phish-Guard
 npm install
 ```
 
@@ -60,6 +60,8 @@ VITE_FIREBASE_PROJECT_ID=your_id
 VITE_FIREBASE_STORAGE_BUCKET=your_bucket
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_id
 VITE_FIREBASE_APP_ID=your_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+VITE_ADMIN_ACCESS_KEY=your_admin_access_key
 ```
 
 ### 3. Launch Platform
@@ -67,6 +69,7 @@ VITE_FIREBASE_APP_ID=your_id
 npm run dev        # Launch local dev server
 npm run build      # Compile production binaries
 npm run preview    # Verify production build locally
+npm run lint       # Run code lint checks
 ```
 
 ---
@@ -107,7 +110,7 @@ PhishGuard utilizes a custom design system centered on "Tactical Readability":
 
 The platform contains a restricted administrative portal for managing training data.
 - **Portal URL:** `/admin`
-- **Root Password:** `phishguard2026`
+- **Access Key:** Set `VITE_ADMIN_ACCESS_KEY` in `.env` (do not hardcode credentials in docs)'phishguard2026'.
 
 ---
 
@@ -116,3 +119,4 @@ The platform contains a restricted administrative portal for managing training d
 Built for the **Cyber Carnival Hackathon**. This platform is designed to turn the human firewall from the weakest link into the strongest defense by providing elite phishing awareness training.
 
 **Over and out. 📡**
+

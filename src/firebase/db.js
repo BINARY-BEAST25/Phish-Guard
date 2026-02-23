@@ -15,6 +15,45 @@ import {
 
 import { db } from "./config";
 
+function isPermissionDeniedError(error) {
+    return error?.code === "permission-denied" || error?.code === "firestore/permission-denied";
+}
+
+const devWriteWarnings = new Set();
+
+function warnSkippedWriteOnce(label, error) {
+    if (!import.meta.env.DEV) return;
+
+    const code = error?.code || error?.message || "unknown";
+    const key = `${label}:${code}`;
+    if (devWriteWarnings.has(key)) return;
+    devWriteWarnings.add(key);
+
+    const hint = isPermissionDeniedError(error)
+        ? " (deploy Firestore rules: firebase deploy --only firestore:rules)"
+        : "";
+    console.warn(`[db] skipped ${label}: ${code}${hint}`);
+}
+
+function withPermissionHint(error, actionLabel) {
+    if (!isPermissionDeniedError(error)) return error;
+    const friendly = new Error(
+        `Permission denied while trying to ${actionLabel}. Deploy Firestore rules and try again.`
+    );
+    friendly.code = error?.code || "permission-denied";
+    return friendly;
+}
+
+async function safeFirestoreWrite(op, label = "firestore write") {
+    try {
+        await op();
+        return true;
+    } catch (error) {
+        warnSkippedWriteOnce(label, error);
+        return false;
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -23,12 +62,11 @@ import { db } from "./config";
 export async function createOrUpdateUser(firebaseUser) {
     const ref = doc(db, "users", firebaseUser.uid);
     const snap = await getDoc(ref);
+    const anonymousName = `Agent_${firebaseUser.uid.slice(0, 5).toUpperCase()}`;
+    const anonymousPhoto = `https://api.dicebear.com/7.x/identicon/svg?seed=${firebaseUser.uid}`;
 
     if (!snap.exists()) {
         // Enforce anonymity by default - don't leak Google Name/Image
-        const anonymousName = `Agent_${firebaseUser.uid.slice(0, 5).toUpperCase()}`;
-        const anonymousPhoto = `https://api.dicebear.com/7.x/identicon/svg?seed=${firebaseUser.uid}`;
-
         await setDoc(ref, {
             uid: firebaseUser.uid,
             displayName: anonymousName,
@@ -48,8 +86,28 @@ export async function createOrUpdateUser(firebaseUser) {
             createdAt: serverTimestamp(),
         });
     } else {
-        // Refresh last-active timestamp only
-        await updateDoc(ref, { lastActive: serverTimestamp() });
+        // Refresh last-active and auto-sanitize legacy provider profile leaks.
+        const existing = snap.data() || {};
+        const updates = { lastActive: serverTimestamp() };
+
+        const providerDisplayName = firebaseUser.displayName || "";
+        const providerEmail = firebaseUser.email || "";
+        const currentDisplayName = String(existing.displayName || "");
+        const shouldSanitizeName = !currentDisplayName
+            || (providerDisplayName && currentDisplayName === providerDisplayName)
+            || (providerEmail && currentDisplayName === providerEmail);
+
+        const providerPhotoURL = firebaseUser.photoURL || "";
+        const currentPhotoURL = String(existing.photoURL || "");
+        const looksLikeGooglePhoto = currentPhotoURL.includes("googleusercontent.com");
+        const shouldSanitizePhoto = !currentPhotoURL
+            || looksLikeGooglePhoto
+            || (providerPhotoURL && currentPhotoURL === providerPhotoURL);
+
+        if (shouldSanitizeName) updates.displayName = anonymousName;
+        if (shouldSanitizePhoto) updates.photoURL = anonymousPhoto;
+
+        await updateDoc(ref, updates);
     }
 }
 
@@ -83,15 +141,23 @@ export async function awardXP(uid, pts) {
 
     await updateDoc(ref, { xp: newXP, level: newLevel, lastActive: serverTimestamp() });
 
-    // Mirror to leaderboard collection
-    await setDoc(doc(db, "leaderboard", uid), {
-        uid,
-        displayName: data.displayName,
-        photoURL: data.photoURL ?? null,
-        xp: newXP,
-        level: newLevel,
-        updatedAt: serverTimestamp(),
-    }, { merge: true });
+    // Mirror to leaderboard collection (non-blocking)
+    await safeFirestoreWrite(
+        () =>
+            setDoc(
+                doc(db, "leaderboard", uid),
+                {
+                    uid,
+                    displayName: data.displayName,
+                    photoURL: data.photoURL ?? null,
+                    xp: newXP,
+                    level: newLevel,
+                    updatedAt: serverTimestamp(),
+                },
+                { merge: true }
+            ),
+        "leaderboard xp mirror"
+    );
 
     return { xp: newXP, level: newLevel };
 }
@@ -124,23 +190,28 @@ export async function saveQuizResult(payloadOrUid, maybePayload = {}) {
         ? payload.correct
         : score >= total;
 
-    await addDoc(collection(db, "quizResults"), {
-        uid,
-        score,
-        total,
-        xpEarned,
-        category,
-        questionId: payload.questionId ?? null,
-        difficulty: payload.difficulty ?? "unknown",
-        correct: isCorrect,
-        completedAt: serverTimestamp(),
-    });
-
+    // Core counters should save even if analytics collections are blocked by rules.
     await setDoc(doc(db, "users", uid), {
         quizAttempts: increment(1),
         quizCorrect: increment(isCorrect ? 1 : 0),
         lastActive: serverTimestamp(),
     }, { merge: true });
+
+    await safeFirestoreWrite(
+        () =>
+            addDoc(collection(db, "quizResults"), {
+                uid,
+                score,
+                total,
+                xpEarned,
+                category,
+                questionId: payload.questionId ?? null,
+                difficulty: payload.difficulty ?? "unknown",
+                correct: isCorrect,
+                completedAt: serverTimestamp(),
+            }),
+        "quizResults write"
+    );
 
     await logPlatformAction(uid, "QUIZ_ATTEMPT", {
         category,
@@ -189,22 +260,27 @@ export async function logSimulatorAttempt(payloadOrUid, maybePayload = {}) {
     const timeTakenMs = Number.isFinite(payload.timeTakenMs) ? payload.timeTakenMs : null;
     const xpEarned = Number.isFinite(payload.xpEarned) ? payload.xpEarned : 0;
 
-    await addDoc(collection(db, "simulatorLogs"), {
-        uid,
-        scenarioId,
-        detected,
-        timeTakenMs,
-        xpEarned,
-        flagsFound,
-        totalFlags,
-        attemptedAt: serverTimestamp(),
-    });
-
+    // Core counters should save even if analytics collections are blocked by rules.
     await setDoc(doc(db, "users", uid), {
         simulationsDone: increment(1),
         emailsFlagged: increment(Math.max(0, flagsFound)),
         lastActive: serverTimestamp(),
     }, { merge: true });
+
+    await safeFirestoreWrite(
+        () =>
+            addDoc(collection(db, "simulatorLogs"), {
+                uid,
+                scenarioId,
+                detected,
+                timeTakenMs,
+                xpEarned,
+                flagsFound,
+                totalFlags,
+                attemptedAt: serverTimestamp(),
+            }),
+        "simulatorLogs write"
+    );
 
     await logPlatformAction(uid, "SIMULATION_ATTEMPT", {
         scenarioId,
@@ -294,8 +370,11 @@ export async function updateStreak(uid) {
 
     await updateDoc(ref, { streak: newStreak, lastActive: serverTimestamp() });
 
-    // Mirror streak to leaderboard
-    await setDoc(doc(db, "leaderboard", uid), { streak: newStreak }, { merge: true });
+    // Mirror streak to leaderboard (non-blocking)
+    await safeFirestoreWrite(
+        () => setDoc(doc(db, "leaderboard", uid), { streak: newStreak }, { merge: true }),
+        "leaderboard streak mirror"
+    );
 
     return newStreak;
 }
@@ -438,23 +517,33 @@ export async function saveTrainingModuleProgress({
 
 /** Log a platform-level action for analytics. */
 export async function logPlatformAction(uid, action, metadata = {}) {
-    await addDoc(collection(db, "activity_logs"), {
-        uid: uid || "guest",
-        action,
-        metadata,
-        timestamp: serverTimestamp(),
-    });
+    await safeFirestoreWrite(
+        () =>
+            addDoc(collection(db, "activity_logs"), {
+                uid: uid || "guest",
+                action,
+                metadata,
+                timestamp: serverTimestamp(),
+            }),
+        "activity log write"
+    );
 }
 
 /** Read a user's recent activity logs (newest first). */
 export async function getUserActivityLogs(uid, topN = 25) {
     if (!uid) return [];
-    const q = query(
-        collection(db, "activity_logs"),
-        where("uid", "==", uid),
-        limit(Math.max(topN, 100))
-    );
-    const snap = await getDocs(q);
+    let snap;
+    try {
+        const q = query(
+            collection(db, "activity_logs"),
+            where("uid", "==", uid),
+            limit(Math.max(topN, 100))
+        );
+        snap = await getDocs(q);
+    } catch (error) {
+        if (!isPermissionDeniedError(error)) throw error;
+        return [];
+    }
 
     return snap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -478,12 +567,18 @@ export async function getUserWeeklyXPEarned(uid, days = 7) {
         "TRAINING_MODULE_COMPLETED",
     ]);
 
-    const q = query(
-        collection(db, "activity_logs"),
-        where("uid", "==", uid),
-        limit(400)
-    );
-    const snap = await getDocs(q);
+    let snap;
+    try {
+        const q = query(
+            collection(db, "activity_logs"),
+            where("uid", "==", uid),
+            limit(400)
+        );
+        snap = await getDocs(q);
+    } catch (error) {
+        if (!isPermissionDeniedError(error)) throw error;
+        return { totalXp: 0, events: 0 };
+    }
 
     let totalXp = 0;
     let events = 0;
@@ -522,53 +617,123 @@ function generateClassCode() {
     return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
 
+async function resolveClassDocByCode(rawCode) {
+    const upperCode = String(rawCode || "").trim().toUpperCase();
+    if (!upperCode) return null;
+
+    // Preferred path: class doc id == class code.
+    const canonicalRef = doc(db, "classes", upperCode);
+    const canonicalSnap = await getDoc(canonicalRef);
+    if (canonicalSnap.exists()) {
+        return { ref: canonicalRef, data: canonicalSnap.data(), code: upperCode };
+    }
+
+    // Legacy fallback: docs that store code as a field with random id.
+    const legacySnap = await getDocs(query(collection(db, "classes"), where("code", "==", upperCode), limit(1)));
+    if (!legacySnap.empty) {
+        const first = legacySnap.docs[0];
+        return { ref: doc(db, "classes", first.id), data: first.data(), code: upperCode };
+    }
+
+    return null;
+}
+
 /** Create a new class group. Returns the generated class code. */
 export async function createClass(uid, displayName) {
-    let code;
-    let attempts = 0;
-    while (attempts < 10) {
-        code = generateClassCode();
-        const existing = await getDocs(query(collection(db, "classes"), where("code", "==", code)));
-        if (existing.empty) break;
-        attempts++;
+    if (!uid) throw new Error("createClass requires uid.");
+
+    try {
+        let attempts = 0;
+        while (attempts < 25) {
+            const code = generateClassCode();
+            const classRef = doc(db, "classes", code);
+            const snap = await getDoc(classRef);
+            if (snap.exists()) {
+                attempts += 1;
+                continue;
+            }
+
+            await setDoc(classRef, {
+                code,
+                createdBy: uid,
+                createdByName: displayName || "Unknown",
+                members: [uid],
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+
+            // Use setDoc merge so class creation still works even if users/{uid} was missing.
+            await setDoc(doc(db, "users", uid), {
+                uid,
+                classCode: code,
+                lastActive: serverTimestamp(),
+            }, { merge: true });
+
+            return code;
+        }
+    } catch (error) {
+        throw withPermissionHint(error, "create a class");
     }
-    await addDoc(collection(db, "classes"), {
-        code, createdBy: uid,
-        createdByName: displayName || "Unknown",
-        members: [uid], createdAt: serverTimestamp(),
-    });
-    await updateDoc(doc(db, "users", uid), { classCode: code });
-    return code;
+
+    throw new Error("Could not generate a unique class code. Please try again.");
 }
 
 /** Join an existing class by code. */
 export async function joinClass(uid, code) {
-    const upperCode = code.trim().toUpperCase();
-    const snap = await getDocs(query(collection(db, "classes"), where("code", "==", upperCode)));
-    if (snap.empty) throw new Error("Class code not found. Check the code and try again.");
-    const classRef = doc(db, "classes", snap.docs[0].id);
-    await updateDoc(classRef, { members: arrayUnion(uid) });
-    await updateDoc(doc(db, "users", uid), { classCode: upperCode });
-    return snap.docs[0].data();
+    if (!uid) throw new Error("joinClass requires uid.");
+    const upperCode = String(code || "").trim().toUpperCase();
+    if (!upperCode) throw new Error("Enter a valid class code.");
+
+    try {
+        const found = await resolveClassDocByCode(upperCode);
+        if (!found) throw new Error("Class code not found. Check the code and try again.");
+
+        await updateDoc(found.ref, {
+            members: arrayUnion(uid),
+            updatedAt: serverTimestamp(),
+        });
+        await setDoc(doc(db, "users", uid), {
+            uid,
+            classCode: upperCode,
+            lastActive: serverTimestamp(),
+        }, { merge: true });
+
+        return { ...found.data, code: upperCode };
+    } catch (error) {
+        throw withPermissionHint(error, "join a class");
+    }
 }
 
 /** Leave a class and clear user's classCode. */
 export async function leaveClass(uid, code) {
-    const upperCode = code.trim().toUpperCase();
-    const snap = await getDocs(query(collection(db, "classes"), where("code", "==", upperCode)));
-    if (!snap.empty) {
-        const members = (snap.docs[0].data().members || []).filter(m => m !== uid);
-        await updateDoc(doc(db, "classes", snap.docs[0].id), { members });
+    if (!uid) throw new Error("leaveClass requires uid.");
+    const upperCode = String(code || "").trim().toUpperCase();
+
+    try {
+        const found = await resolveClassDocByCode(upperCode);
+        if (found) {
+            const members = (found.data.members || []).filter((m) => m !== uid);
+            await updateDoc(found.ref, {
+                members,
+                updatedAt: serverTimestamp(),
+            });
+        }
+        await setDoc(doc(db, "users", uid), {
+            uid,
+            classCode: null,
+            lastActive: serverTimestamp(),
+        }, { merge: true });
+    } catch (error) {
+        throw withPermissionHint(error, "leave a class");
     }
-    await updateDoc(doc(db, "users", uid), { classCode: null });
 }
 
 /** Get leaderboard filtered to class members only. */
 export async function getClassLeaderboard(code) {
-    const upperCode = code.trim().toUpperCase();
-    const classSnap = await getDocs(query(collection(db, "classes"), where("code", "==", upperCode)));
-    if (classSnap.empty) return [];
-    const members = classSnap.docs[0].data().members || [];
+    const upperCode = String(code || "").trim().toUpperCase();
+    const found = await resolveClassDocByCode(upperCode);
+    if (!found) return [];
+    const members = found.data.members || [];
     if (members.length === 0) return [];
     const results = [];
     for (let i = 0; i < members.length; i += 30) {
@@ -581,9 +746,9 @@ export async function getClassLeaderboard(code) {
 
 /** Get class info by code. */
 export async function getClassInfo(code) {
-    const snap = await getDocs(query(collection(db, "classes"), where("code", "==", code.toUpperCase())));
-    if (snap.empty) return null;
-    return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    const found = await resolveClassDocByCode(code);
+    if (!found) return null;
+    return { id: found.ref.id, ...found.data, code: found.code };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

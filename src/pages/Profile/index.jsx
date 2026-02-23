@@ -18,7 +18,7 @@ const INP = {
 export function ProfilePage({ showToast }) {
     const navigate = useNavigate();
     const { user, resetPassword, verifyEmail, linkGoogle, linkEmail, deleteAccount } = useAuth();
-    const { profile } = useUser();
+    const { profile, refreshProfile } = useUser();
     const [loading, setLoading] = useState(false);
     const [linkMode, setLinkMode] = useState(null);
     const [linkEmailData, setLinkEmailData] = useState({ email: "", password: "" });
@@ -29,6 +29,10 @@ export function ProfilePage({ showToast }) {
     const [weeklyXP, setWeeklyXP] = useState(0);
     const [logsLoading, setLogsLoading] = useState(false);
     const [formData, setFormData] = useState({ displayName: "", bio: "", specialization: "General Defense" });
+    const anonName = user?.uid ? `Agent_${user.uid.slice(0, 5).toUpperCase()}` : "Agent";
+    const anonPhoto = user?.uid
+        ? `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`
+        : "https://api.dicebear.com/7.x/identicon/svg?seed=agent";
 
     const level = profile?.level || 1;
     const xp = profile?.xp || 0;
@@ -37,12 +41,12 @@ export function ProfilePage({ showToast }) {
     useEffect(() => {
         if (profile) {
             setFormData({
-                displayName: profile.displayName || user?.displayName || "",
+                displayName: profile.displayName || anonName,
                 bio: profile.bio || "",
                 specialization: profile.specialization || "General Defense",
             });
         }
-    }, [profile, user]);
+    }, [profile, anonName]);
 
     useEffect(() => {
         if (profile?.classCode) {
@@ -136,8 +140,62 @@ export function ProfilePage({ showToast }) {
     const actionLabel = (action = "") =>
         action
             .toLowerCase()
-            .replaceAll("_", " ")
+            .replace(/_/g, " ")
             .replace(/\b\w/g, (c) => c.toUpperCase());
+
+    const toCsvCell = (value) => {
+        const text = value == null ? "" : String(value);
+        if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+        return text;
+    };
+
+    const handleExportLogsCsv = () => {
+        if (activityLogs.length === 0) {
+            showToast("No activity logs available to export.", "inf");
+            return;
+        }
+
+        const headers = [
+            "timestamp",
+            "action",
+            "xpEarned",
+            "moduleId",
+            "scenarioId",
+            "category",
+            "details",
+        ];
+
+        const rows = activityLogs.map((log) => {
+            const metadata = log?.metadata || {};
+            const timestamp = log?.timestamp?.toDate ? log.timestamp.toDate().toISOString() : "";
+            const details = Object.keys(metadata).length > 0 ? JSON.stringify(metadata) : "";
+            return [
+                timestamp,
+                log?.action || "",
+                metadata?.xpEarned ?? "",
+                metadata?.moduleId ?? "",
+                metadata?.scenarioId ?? "",
+                metadata?.category ?? "",
+                details,
+            ];
+        });
+
+        const csv = [headers, ...rows]
+            .map((row) => row.map(toCsvCell).join(","))
+            .join("\r\n");
+
+        const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+        const url = window.URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `activity-logs-${stamp}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+        showToast("Activity logs exported to CSV.", "ok");
+    };
 
     return (
         <div style={{ ...T.page, background: "transparent" }}>
@@ -151,7 +209,7 @@ export function ProfilePage({ showToast }) {
                         <div style={{ ...T.card, padding: 30, textAlign: "center" }}>
                             <div style={{ position: "relative", width: 120, height: 120, margin: "0 auto 20px" }}>
                                 <img
-                                    src={profile?.photoURL || user?.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.uid || 'agent'}&backgroundColor=00f5ff`}
+                                    src={profile?.photoURL || anonPhoto}
                                     alt="avatar"
                                     style={{ width: "100%", height: "100%", borderRadius: "50%", border: "4px solid #00f5ff", boxShadow: "0 0 20px rgba(0,245,255,0.3)" }}
                                 />
@@ -160,7 +218,7 @@ export function ProfilePage({ showToast }) {
                                     <input type="file" hidden accept="image/*" onChange={handleAvatarChange} />
                                 </label>
                             </div>
-                            <h2 style={{ fontFamily: "Orbitron", fontSize: "1.2rem", color: "#e0f7fa", margin: "0 0 4px" }}>{profile?.displayName || user?.displayName || "Agent"}</h2>
+                            <h2 style={{ fontFamily: "Orbitron", fontSize: "1.2rem", color: "#e0f7fa", margin: "0 0 4px" }}>{profile?.displayName || anonName}</h2>
                             <div style={{ color: "#00f5ff", fontFamily: "Share Tech Mono", fontSize: "0.8rem", marginBottom: 8 }}>LVL {level} DEFENDER</div>
                             <div style={{ display: "inline-block", padding: "3px 10px", borderRadius: 4, fontSize: "0.65rem", fontFamily: "Share Tech Mono", background: user.emailVerified ? "rgba(0,255,157,0.1)" : "rgba(255,23,68,0.1)", color: user.emailVerified ? "#00ff9d" : "#ff1744", border: `1px solid ${user.emailVerified ? "rgba(0,255,157,0.2)" : "rgba(255,23,68,0.2)"}`, marginBottom: 15 }}>
                                 STATUS: {user.emailVerified ? "VERIFIED" : "UNVERIFIED"}
@@ -196,7 +254,7 @@ export function ProfilePage({ showToast }) {
 
                         {/* Badges */}
                         <div style={{ ...T.card, padding: 25 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 15 }}>// ACHIEVEMENT BADGES</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 15 }}>{"// ACHIEVEMENT BADGES"}</div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 }}>
                                 {BADGES.map((b, i) => {
                                     const earned = (b.req.type === 'level' && level >= b.req.value) ||
@@ -211,9 +269,10 @@ export function ProfilePage({ showToast }) {
                                 })}
                             </div>
                         </div>
-                        {/* -- SECURITY -- */}
+
+                        {/* NEURAL ACADEMY TRACKING (Moved to right column in logic below if preferred, but keeping here for now and fixing lint) */}
                         <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// NEURAL ACADEMY TRACKING</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>{"// NEURAL ACADEMY TRACKING"}</div>
                             <div>
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                                     <div style={{ fontSize: "0.78rem", color: "#e0f7fa" }}>
@@ -253,35 +312,15 @@ export function ProfilePage({ showToast }) {
                                 )}
                             </div>
                         </div>
-
-                        <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// RECENT ACTIVITY LOGS</div>
-                            <div style={{ maxHeight: 220, overflowY: "auto" }}>
-                                {logsLoading && (
-                                    <div style={{ color: "var(--txt2)", fontSize: "0.75rem" }}>Loading logs...</div>
-                                )}
-                                {!logsLoading && activityLogs.length === 0 && (
-                                    <div style={{ color: "var(--txt2)", fontSize: "0.75rem" }}>No activity logs yet.</div>
-                                )}
-                                {!logsLoading && activityLogs.map((log) => (
-                                    <div key={log.id} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                                        <div style={{ color: "#e0f7fa", fontSize: "0.75rem" }}>{actionLabel(log.action)}</div>
-                                        <div style={{ color: "var(--txt2)", fontSize: "0.65rem", fontFamily: "Share Tech Mono" }}>
-                                            {formatLogTime(log.timestamp)}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
                     </div>
 
-                    {/* -- RIGHT: Edit Form + Class + Security -- */}
+                    {/* -- RIGHT: Edit Form + Class + Security + Logs -- */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
                         {/* EDIT FORM */}
                         <div style={{ ...T.card, padding: 28 }}>
                         <form onSubmit={handleUpdate} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 4 }}>// AGENT CONFIGURATION</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 4 }}>{"// AGENT CONFIGURATION"}</div>
                             <div>
                                 <label style={{ color: "var(--txt2)", fontSize: "0.75rem", display: "block", marginBottom: 6 }}>CODENAME</label>
                                 <input style={INP} value={formData.displayName} onChange={e => setFormData({ ...formData, displayName: e.target.value })} required />
@@ -309,7 +348,7 @@ export function ProfilePage({ showToast }) {
 
                         {/* -- CLASS / GROUP -- */}
                         <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>// TRAINING CLASS / FRIEND GROUP</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14 }}>{"// TRAINING CLASS / FRIEND GROUP"}</div>
 
                             {profile?.classCode ? (
                                 <div style={{ background: "rgba(0,245,255,0.04)", border: "1px solid rgba(0,245,255,0.2)", borderRadius: 10, padding: 20 }}>
@@ -332,28 +371,29 @@ export function ProfilePage({ showToast }) {
                                                 style={{ ...T.btnG, fontSize: "0.75rem", padding: "8px 14px" }}
                                             >📋 Copy Code</button>
                                             <button
-                                                onClick={async () => {
-                                                    if (!window.confirm("Leave this class? Your XP won't be lost.")) return;
-                                                    setLoading(true);
-                                                    try {
-                                                        await leaveClass(user.uid, profile.classCode);
-                                                        setClassInfo(null);
-                                                        showToast("Left class successfully", "ok");
-                                                    } catch (e) { showToast(e.message, "ng"); }
-                                                    finally { setLoading(false); }
-                                                }}
+                                            onClick={async () => {
+                                                if (!window.confirm("Leave this class? Your XP won't be lost.")) return;
+                                                setLoading(true);
+                                                try {
+                                                    await leaveClass(user.uid, profile.classCode);
+                                                    await refreshProfile();
+                                                    setClassInfo(null);
+                                                    showToast("Left class successfully", "ok");
+                                                } catch (e) { showToast(e.message, "ng"); }
+                                                finally { setLoading(false); }
+                                            }}
                                                 style={{ ...T.btnG, fontSize: "0.75rem", padding: "8px 14px", color: "#ff4757", borderColor: "rgba(255,71,87,0.3)" }}
                                             >🚪 Leave Class</button>
                                         </div>
                                     </div>
                                     <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(0,0,0,0.3)", borderRadius: 6, fontSize: "0.72rem", color: "var(--txt2)" }}>
-                                        💡 Share this code with friends — they join from their Profile page and appear on your shared leaderboard.
+                                        💡 Share this code with friends &apos; they join from their Profile page and appear on your shared leaderboard.
                                     </div>
                                 </div>
                             ) : (
                                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                     <p style={{ color: "var(--txt2)", fontSize: "0.8rem", margin: 0 }}>
-                                        Create a private group or join a friend's class to compete on a shared leaderboard.
+                                        Create a private group or join a friend&apos;s class to compete on a shared leaderboard.
                                     </p>
                                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                                         <button
@@ -361,7 +401,8 @@ export function ProfilePage({ showToast }) {
                                             onClick={async () => {
                                                 setLoading(true);
                                                 try {
-                                                    const code = await createClass(user.uid, profile?.displayName || user?.displayName);
+                                                    const code = await createClass(user.uid, profile?.displayName || anonName);
+                                                    await refreshProfile();
                                                     showToast(`Class created! Code: ${code}`, "ok");
                                                     const info = await getClassInfo(code);
                                                     setClassInfo(info);
@@ -389,6 +430,7 @@ export function ProfilePage({ showToast }) {
                                                     setLoading(true);
                                                     try {
                                                         await joinClass(user.uid, joinCode);
+                                                        await refreshProfile();
                                                         const info = await getClassInfo(joinCode);
                                                         setClassInfo(info);
                                                         setClassMode(null);
@@ -404,9 +446,38 @@ export function ProfilePage({ showToast }) {
                             )}
                         </div>
 
+                        {/* RECENT ACTIVITY LOGS (Moved to right column for balance) */}
+                        <div style={{ ...T.card, padding: 28 }}>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                                <span>{"// RECENT ACTIVITY LOGS"}</span>
+                                <button
+                                    onClick={handleExportLogsCsv}
+                                    style={{ ...T.btnG, fontSize: "0.65rem", padding: "6px 10px" }}
+                                >
+                                    Export CSV
+                                </button>
+                            </div>
+                            <div style={{ maxHeight: 220, overflowY: "auto" }}>
+                                {logsLoading && (
+                                    <div style={{ color: "var(--txt2)", fontSize: "0.75rem" }}>Loading logs...</div>
+                                )}
+                                {!logsLoading && activityLogs.length === 0 && (
+                                    <div style={{ color: "var(--txt2)", fontSize: "0.75rem" }}>No activity logs yet.</div>
+                                )}
+                                {!logsLoading && activityLogs.map((log) => (
+                                    <div key={log.id} style={{ padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                                        <div style={{ color: "#e0f7fa", fontSize: "0.75rem" }}>{actionLabel(log.action)}</div>
+                                        <div style={{ color: "var(--txt2)", fontSize: "0.65rem", fontFamily: "Share Tech Mono" }}>
+                                            {formatLogTime(log.timestamp)}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
 
                         <div style={{ ...T.card, padding: 28 }}>
-                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 16 }}>// SECURITY &amp; AUTHENTICATION</div>
+                            <div style={{ ...T.secLbl, fontSize: "0.7rem", marginBottom: 16 }}>{"// SECURITY & AUTHENTICATION"}</div>
 
                             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                 {user.isAnonymous && (
@@ -429,7 +500,7 @@ export function ProfilePage({ showToast }) {
 
                                 {linkMode === "email" && user.isAnonymous && (
                                     <div style={{ padding: 15, background: "rgba(0,0,0,0.3)", borderRadius: 8, border: "1px solid rgba(0,245,255,0.2)" }}>
-                                        <div style={{ ...T.secLbl, fontSize: "0.6rem", marginBottom: 10 }}>// ENTER CREDENTIALS</div>
+                                        <div style={{ ...T.secLbl, fontSize: "0.6rem", marginBottom: 10 }}>{"// ENTER CREDENTIALS"}</div>
                                         <input style={{ ...INP, marginBottom: 10 }} type="email" placeholder="Email" value={linkEmailData.email} onChange={e => setLinkEmailData({ ...linkEmailData, email: e.target.value })} />
                                         <input style={{ ...INP, marginBottom: 10 }} type="password" placeholder="Password" value={linkEmailData.password} onChange={e => setLinkEmailData({ ...linkEmailData, password: e.target.value })} />
                                         <div style={{ display: "flex", gap: 10 }}>
@@ -499,7 +570,9 @@ export function ProfilePage({ showToast }) {
                                                 showToast("ACCOUNT DELETED.", "ok");
                                             } catch (e) {
                                                 if (e.code === "auth/requires-recent-login") {
-                                                    showToast("Please sign out and sign in again first.", "ng");
+                                                    showToast("Recent login required. Re-authenticate and try deleting again.", "ng");
+                                                } else if (e.code === "permission-denied" || e.code === "firestore/permission-denied") {
+                                                    showToast("Permission denied. Deploy latest Firestore rules and retry.", "ng");
                                                 } else { showToast(e.message, "ng"); }
                                             } finally { setLoading(false); }
                                         }}
@@ -516,6 +589,3 @@ export function ProfilePage({ showToast }) {
         </div>
     );
 }
-
-
-

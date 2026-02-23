@@ -28,6 +28,9 @@ export function Navbar({ page, setPage, xp, streak, onLoginClick }) {
 
   const displayXP = profile?.xp ?? xp ?? 0;
   const displayStreak = profile?.streak ?? streak ?? 0;
+  const anonPhoto = user?.uid
+    ? `https://api.dicebear.com/7.x/identicon/svg?seed=${user.uid}`
+    : "https://api.dicebear.com/7.x/identicon/svg?seed=guest";
 
   return (
     <>
@@ -41,7 +44,7 @@ export function Navbar({ page, setPage, xp, streak, onLoginClick }) {
 
         {/* Logo */}
         <a href="#" onClick={(e) => { e.preventDefault(); setPage("home"); setMenuOpen(false); }} style={T.logo}>
-          <svg width={32} height={32} viewBox="0 0 36 36" fill="none">
+          <svg width={32} height={32} viewBox="0 0 36 36" fill="none" style={{ display: "block", overflow: "visible", flexShrink: 0 }}>
             <path d="M18 2L4 8v12c0 8 6.67 14.93 14 16 7.33-1.07 14-7.99 14-16V8L18 2z"
               fill="rgba(0,245,255,.1)" stroke="#00f5ff" strokeWidth="1.5" />
             <path d="M12 18l4 4 8-8" stroke="#00f5ff" strokeWidth="2"
@@ -109,7 +112,7 @@ export function Navbar({ page, setPage, xp, streak, onLoginClick }) {
                 style={{ position: "relative", cursor: "pointer" }}
               >
                 <img
-                  src={profile?.photoURL || user?.photoURL || `https://api.dicebear.com/7.x/bottts/svg?seed=${user?.uid || 'guest'}&backgroundColor=00f5ff`}
+                  src={profile?.photoURL || anonPhoto}
                   alt="avatar"
                   style={{
                     width: 32, height: 32, borderRadius: "50%",
