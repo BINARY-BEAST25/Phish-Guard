@@ -52,6 +52,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
   const [questionBank, setQuestionBank] = useState(() => QUESTIONS.map(normalizeQuizQuestion));
   const [contentSource, setContentSource] = useState("local");
   const timerRef = useRef(null);
+  const { callGemini } = useGemini();
 
   const totalQuestionsInBank = questionBank.length || 1;
   const TOTAL_QUESTIONS = Math.min(QUIZ_LIMIT, totalQuestionsInBank);
@@ -61,6 +62,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
   // ── Timer ──────────────────────────────────────────────────────────────────
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
+    if (!quizMode || !activeQuestions.length) return;
     setTimer(30);
     timerRef.current = setInterval(() => {
       setTimer((t) => {
@@ -68,7 +70,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
         return t - 1;
       });
     }, 1000);
-  }, []);
+  }, [quizMode, activeQuestions.length]);
 
   useEffect(() => {
     startTimer();
@@ -79,19 +81,39 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
   const [currentDiff, setCurrentDiff] = useState("easy");
   const [consecutiveCorrect, setConsecutiveCorrect] = useState(0);
 
-  // Filter and pick next question based on adaptive difficulty
+  // Filter and pick next question
   const getNextQuestion = (prevIdx, wasCorrect) => {
-    let newDiff = currentDiff;
-    let newStreak = wasCorrect ? consecutiveCorrect + 1 : 0;
+    if (quizMode === 'adaptive') {
+      let newDiff = currentDiff;
+      let newStreak = wasCorrect ? consecutiveCorrect + 1 : 0;
 
-    if (wasCorrect && newStreak >= 2) {
-      if (currentDiff === "easy") newDiff = "medium";
-      else if (currentDiff === "medium") newDiff = "hard";
-      newStreak = 0; // Reset streak on level up
-    } else if (!wasCorrect) {
-      if (currentDiff === "hard") newDiff = "medium";
-      else if (currentDiff === "medium") newDiff = "easy";
+      if (wasCorrect && newStreak >= 2) {
+        if (currentDiff === "easy") newDiff = "medium";
+        else if (currentDiff === "medium") newDiff = "hard";
+        newStreak = 0; // Reset streak on level up
+      } else if (!wasCorrect) {
+        if (currentDiff === "hard") newDiff = "medium";
+        else if (currentDiff === "medium") newDiff = "easy";
+      }
+
+      setCurrentDiff(newDiff);
+      setConsecutiveCorrect(newStreak);
+
+      // Find questions for new difficulty from the full pool
+      const pool = QUESTIONS.filter(q => q.diff === newDiff);
+      const randomIdx = Math.floor(Math.random() * pool.length);
+      const selectedQ = pool[randomIdx];
+
+      // Convert back to original QUESTIONS index or just set it
+      // Actually, since we're using activeQuestions, let's just find it there if we pre-filled it, 
+      // but for adaptive we might want to keep the full pool.
+      // Let's adjust how activeQuestions is used.
+      return QUESTIONS.findIndex(item => item.q === selectedQ.q);
+    } else {
+      // Fixed modes or dynamic
+      return (qIdx + 1) % activeQuestions.length;
     }
+  };
 
     setCurrentDiff(newDiff);
     setConsecutiveCorrect(newStreak);
@@ -217,10 +239,11 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
 
   // ── Next question ──────────────────────────────────────────────────────────
   const next = () => {
-    if (history.length >= TOTAL_QUESTIONS) {
+    const total = quizMode === 'adaptive' ? 12 : activeQuestions.length;
+    if (history.length >= total) {
       showToast("🏆 Quiz complete! Well done!", "ok");
+      setQuizMode(null);
       setQIdx(0); setHistory([]); setAnswered(false); setSelected(null);
-      setCurrentDiff("easy"); setConsecutiveCorrect(0);
     } else {
       const lastAttempt = history[history.length - 1];
       const wasCorrect = typeof lastAttempt?.correct === "boolean"
@@ -237,7 +260,52 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
   const CIRC = 125.6;
   const offset = CIRC - (timer / 30) * CIRC;
   const timerColor = timer > 15 ? "#00f5ff" : timer > 7 ? "#ff6d00" : "#ff1744";
-  const diffColor = q.diff === "easy" ? "#00ff9d" : q.diff === "medium" ? "#ff6d00" : "#ff1744";
+  const diffColor = !q ? "#00f5ff" : q.diff === "easy" ? "#00ff9d" : q.diff === "medium" ? "#ff6d00" : "#ff1744";
+
+  // ── Selection Screen ───────────────────────────────────────────────────────
+  if (!quizMode) {
+    return (
+      <div style={{ ...T.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ ...T.card, maxWidth: 500, padding: 40, textAlign: "center" }}>
+          <h2 style={{ fontFamily: "Orbitron", marginBottom: 10, color: "#00f5ff" }}>PHISH-QUIZ OS</h2>
+          <p style={{ color: "var(--txt2)", marginBottom: 30, fontSize: ".9rem" }}>Select training intensity for your neural firewall.</p>
+          
+          <div style={{ display: "grid", gap: 12 }}>
+            <button style={{ ...T.btnG, padding: "18px" }} onClick={() => startQuiz('easy')}>
+              🟢 BASIC (Easy Mode)
+            </button>
+            <button style={{ ...T.btnP, padding: "18px" }} onClick={() => startQuiz('hard')}>
+              🔴 ELITE (Hard Mode)
+            </button>
+            <button style={{ ...T.btnG, border: "1px solid #ff00ff", color: "#ff00ff", padding: "18px" }} onClick={() => startQuiz('adaptive')}>
+              ⚡ ADAPTIVE NEURAL (Dynamic Difficulty)
+            </button>
+            <button 
+              disabled={generating}
+              style={{ ...T.btnP, border: "1px solid #00ff9d", color: "#00ff9d", padding: "18px" }} 
+              onClick={() => startQuiz('dynamic')}
+            >
+              {generating ? "📡 RECALIBRATING..." : "🤖 AI GENERATED (Real-time Phish)"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (generating) {
+    return (
+      <div style={{ ...T.page, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "3rem", marginBottom: 20, animation: "pulse 1.5s infinite" }}>📡</div>
+          <h2 style={{ fontFamily: "Share Tech Mono", color: "#00f5ff" }}>CONNECTING TO FINN-AI...</h2>
+          <p style={{ color: "var(--txt2)" }}>Synthesizing custom phishing scenarios...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentTotal = quizMode === 'adaptive' ? 12 : activeQuestions.length;
 
   return (
     <div style={{
@@ -257,9 +325,6 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
         @keyframes timerPulse     { 0%,100%{box-shadow:0 0 0 0 rgba(255,23,68,0)} 50%{box-shadow:0 0 0 6px rgba(255,23,68,.25)} }
       `}</style>
 
-      {/* ── Full background stack ── */}
-
-
       {/* ── Page content ── */}
       <div className="pg-container" style={{ position: "relative", zIndex: 2, maxWidth: 880, margin: "0 auto", padding: "80px 24px 60px" }}>
 
@@ -274,7 +339,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
               fontFamily: "Share Tech Mono, monospace", fontSize: ".7rem", fontWeight: 700,
               background: `${diffColor}18`, border: `1px solid ${diffColor}50`, color: diffColor,
             }}>
-              {q.diff.toUpperCase()}
+              {q?.diff?.toUpperCase() || "DYNAMIC"}
             </span>
             <span style={{
               padding: "4px 10px",
@@ -343,14 +408,14 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
             padding: 14, fontFamily: "Share Tech Mono, monospace",
             fontSize: ".82rem", color: "var(--txt2)", whiteSpace: "pre-wrap", lineHeight: 1.6,
           }}>
-            {q.img}
+            {q?.img}
           </div>
 
           <div style={{
             fontFamily: "Orbitron, sans-serif", fontSize: "1.1rem",
             fontWeight: 700, lineHeight: 1.5, marginBottom: 26,
           }}>
-            {q.q}
+            {q?.q}
           </div>
 
           {/* Options */}
@@ -421,7 +486,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
 
           {answered && (
             <button style={{ ...T.btnP, marginTop: 20 }} onClick={next}>
-              Next Question →
+              {history.length >= currentTotal ? "Finish Quiz" : "Next Question →"}
             </button>
           )}
         </div>
