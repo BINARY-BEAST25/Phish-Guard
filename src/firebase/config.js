@@ -2,7 +2,7 @@
 // All config values come from .env (Vite exposes VITE_* vars to the client)
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics, isSupported } from "firebase/analytics";
 
@@ -20,7 +20,16 @@ const firebaseConfig = {
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+let firestoreDb;
+try {
+    firestoreDb = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+        useFetchStreams: false,
+    });
+} catch {
+    firestoreDb = getFirestore(app);
+}
+export const db = firestoreDb;
 export const storage = getStorage(app);
 
 // Analytics only works in browser (not SSR / service-worker environments)

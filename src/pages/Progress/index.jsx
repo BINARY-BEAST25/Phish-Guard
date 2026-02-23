@@ -1,18 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { T } from '../../styles';
 import { BADGES, MODULES } from '../../constants';
 import { useAuth, useUser } from "../../context";
-import { PageHeader } from "../../components";
+import { PageHeader, XPBar } from "../../components";
+import { getUserGlobalRankStats, getUserWeeklyXPEarned } from "../../firebase";
 
-const ACTIVITY_STATS = [
-  ["Quizzes Completed", "23", "#00f5ff"],
-  ["Simulations Done", "8", "#00ff9d"],
-  ["Streak Record", "12 days", "#ff6d00"],
-  ["Community Flags", "15", "#d500f9"],
-];
-
-function dotColor(s) { return s === "done" ? "#00ff9d" : s === "active" ? "#00f5ff" : "var(--txt2)"; }
-function badgeText(s) { return s === "done" ? "✓ DONE" : s === "active" ? "→ ACTIVE" : "🔒 LOCKED"; }
 
 // ─── CANVAS: MATRIX RAIN ─────────────────────────────────────────────────────
 
@@ -43,18 +36,69 @@ function SectionLabel({ children }) {
 
 // ─── PROGRESS PAGE ────────────────────────────────────────────────────────────
 export function ProgressPage({ xp, level, xpPct, xpToNext }) {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { profile } = useUser();
+  const [rankStats, setRankStats] = useState({ rank: null, totalUsers: 0, xp: 0 });
+  const [rankLoading, setRankLoading] = useState(false);
+  const [weeklyXP, setWeeklyXP] = useState(0);
 
+  const quizAttempts = profile?.quizAttempts || profile?.quizzesCompleted || 0;
+  const simAttempts = profile?.simulationsDone || 0;
+  const emailsFlagged = profile?.emailsFlagged || profile?.communityFlags || 0;
+  const trainingProgress = profile?.trainingProgress || {};
+  const moduleCompletions = MODULES.filter((m) => trainingProgress[m.id]?.completed).length;
+  const pendingModules = Math.max(0, MODULES.length - moduleCompletions);
+  const moduleCompletionPct = MODULES.length ? Math.round((moduleCompletions / MODULES.length) * 100) : 0;
   const ACTIVITY_STATS = [
-    ["Quizzes Completed", profile?.quizzesCompleted || "0", "#00f5ff"],
-    ["Simulations Done", profile?.simulationsDone || "0", "#00ff9d"],
-    ["Streak Record", `${profile?.streak || 0} days`, "#ff6d00"],
-    ["Community Flags", profile?.communityFlags || "0", "#d500f9"],
+    ["Quizzes Completed", quizAttempts, "#00f5ff"],
+    ["Simulations Run", simAttempts, "#ff6d00"],
+    ["Training Completion", `${moduleCompletionPct}%`, "#00ff9d"],
+    ["Pending Modules", pendingModules, "#d500f9"],
   ];
+  const quizAccuracy =
+    quizAttempts > 0
+      ? `${Math.round(((profile?.quizCorrect || 0) / quizAttempts) * 100)}%`
+      : "0%";
+  const rankLabel = rankLoading ? "..." : (rankStats.rank ? `#${rankStats.rank}` : "--");
+  const rankPercentile = rankStats.rank && rankStats.totalUsers
+    ? Math.max(1, Math.round((rankStats.rank / rankStats.totalUsers) * 100))
+    : null;
+  const rankSubLabel = rankLoading
+    ? "Calculating..."
+    : rankPercentile
+      ? `Top ${rankPercentile}% worldwide`
+      : "Rank unavailable";
 
-  const agentName = profile?.displayName || user?.displayName || "Guest Agent";
+  const fallbackAgentName = user?.uid ? `Agent_${user.uid.slice(0, 5).toUpperCase()}` : "Guest Agent";
+  const agentName = profile?.displayName || fallbackAgentName;
   const agentInitials = agentName.split(" ").map(n => n[0]).join("").substring(0, 2).toUpperCase();
+
+  useEffect(() => {
+    let mounted = true;
+    if (!user?.uid) return;
+
+    setRankLoading(true);
+    Promise.all([
+      getUserGlobalRankStats(user.uid),
+      getUserWeeklyXPEarned(user.uid, 7),
+    ])
+      .then(([rankData, weeklyData]) => {
+        if (!mounted) return;
+        setRankStats(rankData);
+        setWeeklyXP(weeklyData?.totalXp || 0);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setRankStats({ rank: null, totalUsers: 0, xp: 0 });
+        setWeeklyXP(0);
+      })
+      .finally(() => {
+        if (mounted) setRankLoading(false);
+      });
+
+    return () => { mounted = false; };
+  }, [user?.uid, xp]);
 
   if (!user) {
     return (
@@ -96,7 +140,7 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
 
 
       {/* ── Page content ── */}
-      <div style={{ position: "relative", zIndex: 2, padding: "80px 60px 60px", maxWidth: 1100, margin: "0 auto" }}>
+      <div className="pg-container" style={{ position: "relative", zIndex: 2, padding: "80px 60px 60px", maxWidth: 1100, margin: "0 auto" }}>
 
         {/* ── Profile header ── */}
         <div style={{
@@ -122,8 +166,8 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
             }}>
               {agentName}
             </h2>
-            <p style={{ color: "var(--txt2)", fontFamily: "Share Tech Mono, monospace", fontSize: ".82rem" }}>
-              Level {level} · {profile?.specialization || "Awareness Recruit"} · Joined {profile?.createdAt ? "recently" : "60 days ago"}
+            <p style={{ color: "var(--txt2)", fontFamily: "Share Tech Mono, monospace", fontSize: ".82rem", textTransform: "uppercase" }}>
+              Level {level} · {level >= 10 ? "Grandmaster" : level >= 7 ? "Veteran" : level >= 4 ? "Guardian" : "Recruit"} · Joined {profile?.createdAt ? "recently" : "60 days ago"}
             </p>
             {/* Live status dot */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
@@ -150,24 +194,24 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
               fontFamily: "Orbitron, sans-serif", fontSize: "2.4rem", fontWeight: 800,
               color: "#ffd600", textShadow: "0 0 30px rgba(255,214,0,0.5)", lineHeight: 1,
             }}>
-              #47
+              {rankLabel}
             </div>
             <div style={{
               fontFamily: "Share Tech Mono, monospace", fontSize: ".68rem",
               color: "var(--txt2)", marginTop: 4,
             }}>
-              Top 5% worldwide
+              {rankSubLabel}
             </div>
           </div>
         </div>
 
         {/* ── Stat cards ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 32 }}>
+        <div className="stat-cards-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 16, marginBottom: 32 }}>
           {[
             ["⚡", xp.toLocaleString(), "Total XP", "#00f5ff"],
             ["🔥", profile?.streak || 0, "Day Streak", "#ff6d00"],
-            ["🎯", profile?.accuracy || "0%", "Accuracy", "#00ff9d"],
-            ["📧", "34", "Emails Flagged", "#d500f9"],
+            ["🎯", quizAccuracy, "Accuracy", "#00ff9d"],
+            ["📧", emailsFlagged, "Emails Flagged", "#d500f9"],
           ].map(([icon, val, lbl, color], idx) => (
             <div
               key={lbl}
@@ -203,7 +247,7 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
         </div>
 
         {/* ── Two-column layout ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+        <div className="prog-main-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
 
           {/* ── LEFT col: badges + learning map ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -211,7 +255,7 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
             {/* Badge rack */}
             <div style={{ ...T.card, padding: 28 }}>
               <SectionLabel>ACHIEVEMENT BADGES</SectionLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
+              <div className="badges-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12 }}>
                 {BADGES.map((b, idx) => {
                   const isEarned = (b.req.type === 'level' && level >= b.req.value) ||
                     (b.req.type === 'xp' && xp >= b.req.value) ||
@@ -291,66 +335,42 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
               })()}
             </div>
 
-            {/* Learning map */}
+            {/* Training summary */}
             <div style={{ ...T.card, padding: 28 }}>
-              <SectionLabel>NEURAL TRAINING MODULES</SectionLabel>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {MODULES.map((m, i) => {
-                  const dc = dotColor(m.status);
-                  const isLocked = m.status === "locked";
-                  return (
-                    <div
-                      key={m.id}
-                      style={{
-                        padding: "16px",
-                        background: isLocked ? "rgba(0,0,0,0.2)" : "rgba(0,245,255,0.03)",
-                        border: `1px solid ${isLocked ? "rgba(255,255,255,0.05)" : "rgba(0,245,255,0.15)"}`,
-                        borderRadius: 8,
-                        animation: `statIn .4s ${i * 0.07}s ease both`,
-                        position: "relative",
-                        overflow: "hidden"
-                      }}
-                    >
-                      {/* Side Indicator */}
-                      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 3, background: dc }} />
-
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                          <span style={{ fontSize: "1.4rem", opacity: isLocked ? 0.3 : 1 }}>{m.icon}</span>
-                          <div>
-                            <div style={{ fontSize: "1rem", fontWeight: 700, color: isLocked ? "var(--txt2)" : "#fff" }}>{m.name}</div>
-                            <div style={{ fontSize: "0.7rem", color: dc, fontFamily: "Share Tech Mono" }}>{isLocked ? "ACCESS RESTRICTED" : m.sub}</div>
-                          </div>
-                        </div>
-                        <span style={{
-                          fontFamily: "Share Tech Mono, monospace", fontSize: ".65rem",
-                          color: dc, padding: "3px 10px", borderRadius: 4,
-                          border: `1px solid ${dc}80`, background: `${dc}15`
-                        }}>
-                          {badgeText(m.status)}
-                        </span>
-                      </div>
-
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                        <div style={{ fontSize: "0.65rem", background: "rgba(255,255,255,0.05)", padding: "3px 8px", borderRadius: 4, color: "#90a4ae" }}>⏱ {m.time}</div>
-                        <div style={{ fontSize: "0.65rem", background: "rgba(255,255,255,0.05)", padding: "3px 8px", borderRadius: 4, color: "#90a4ae" }}>📊 {m.diff}</div>
-                        {m.topics?.slice(0, 2).map(t => (
-                          <div key={t} style={{ fontSize: "0.65rem", background: "rgba(0,245,255,0.05)", padding: "3px 8px", borderRadius: 4, color: "#00f5ff" }}># {t}</div>
-                        ))}
-                      </div>
-
-                      {/* Progress bar */}
-                      <div style={{ height: 3, background: "rgba(255,255,255,0.05)", borderRadius: 2, position: "relative" }}>
-                        <div style={{
-                          position: "absolute", left: 0, top: 0, height: "100%",
-                          width: m.status === "done" ? "100%" : (m.status === "active" ? "40%" : "0%"),
-                          background: dc, boxShadow: `0 0 10px ${dc}`
-                        }} />
-                      </div>
-                    </div>
-                  );
-                })}
+              <SectionLabel>NEURAL TRAINING STATUS</SectionLabel>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid rgba(0,255,157,.2)", background: "rgba(0,255,157,.06)" }}>
+                  <div style={{ color: "#00ff9d", fontFamily: "Share Tech Mono, monospace", fontSize: ".68rem", letterSpacing: ".08em" }}>
+                    COMPLETED
+                  </div>
+                  <div style={{ color: "#e0f7fa", fontFamily: "Orbitron, sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+                    {moduleCompletions}
+                  </div>
+                </div>
+                <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid rgba(255,109,0,.2)", background: "rgba(255,109,0,.06)" }}>
+                  <div style={{ color: "#ffb36d", fontFamily: "Share Tech Mono, monospace", fontSize: ".68rem", letterSpacing: ".08em" }}>
+                    PENDING
+                  </div>
+                  <div style={{ color: "#e0f7fa", fontFamily: "Orbitron, sans-serif", fontSize: "1.5rem", fontWeight: 800 }}>
+                    {pendingModules}
+                  </div>
+                </div>
               </div>
+              <div style={{ color: "var(--txt2)", fontSize: ".78rem", marginBottom: 12 }}>
+                {moduleCompletionPct}% overall completion ({moduleCompletions}/{MODULES.length})
+              </div>
+              {pendingModules > 0 ? (
+                <button
+                  onClick={() => navigate("/neural-academy")}
+                  style={{ ...T.btnHP, width: "100%", justifyContent: "center" }}
+                >
+                  Complete Modules in Neural Academy
+                </button>
+              ) : (
+                <div style={{ color: "#00ff9d", fontFamily: "Share Tech Mono, monospace", fontSize: ".78rem" }}>
+                  All modules completed.
+                </div>
+              )}
             </div>
           </div>
 
@@ -421,7 +441,7 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
                 marginTop: 12, fontFamily: "Share Tech Mono, monospace",
                 fontSize: ".72rem", color: "var(--txt2)", textAlign: "right",
               }}>
-                This week: <span style={{ color: "#00f5ff" }}>247 XP earned</span>
+                Last 7 days: <span style={{ color: "#00f5ff" }}>{weeklyXP.toLocaleString()} XP earned</span>
               </div>
             </div>
 
@@ -461,6 +481,20 @@ export function ProgressPage({ xp, level, xpPct, xpToNext }) {
           </div>
         </div>
       </div>
-    </div>
+      <style>{`
+        @media (max-width: 768px) {
+          .pg-container { padding: 40px 10px !important; }
+          .stat-cards-grid { grid-template-columns: 1fr 1fr !important; }
+          .prog-main-grid { grid-template-columns: 1fr !important; }
+          .badges-grid { grid-template-columns: repeat(3, 1fr) !important; }
+        }
+        @media (max-width: 480px) {
+          .stat-cards-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
+    </div >
   );
 }
+
+
+

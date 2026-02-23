@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { T } from '../../styles';
 import { SIM_STAGES } from '../../constants';
-import { logSimulatorAttempt } from '../../firebase';
+import { logSimulatorAttempt, logPlatformAction, signInGuest, getAdminSimScenarios } from '../../firebase';
 import { useUser, useAuth } from '../../context';
 import { useGemini } from '../../hooks';
 import { PageHeader } from '../../components';
@@ -48,9 +48,53 @@ function PhishBody({ stage, flagged, submitted, revealed, onToggle }) {
   );
 }
 
+function normalizeStage(raw, idx) {
+  const legit = raw?.legit || {};
+  const phish = raw?.phish || {};
+  const rawFlags = Array.isArray(phish.flags) ? phish.flags.filter((f) => f?.hint || f?.text || f?.id) : [];
+  const flags = rawFlags.map((flag, flagIdx) => ({
+    id: flag?.id || `f${flagIdx + 1}`,
+    text: flag?.text || "",
+    hint: flag?.hint || "Potential phishing indicator.",
+  }));
+
+  if (flags.length === 0) {
+    flags.push({
+      id: "f1",
+      text: phish.addr || "suspicious-sender@example.com",
+      hint: "Sender identity requires verification.",
+    });
+  }
+
+  if (!flags[0]?.text) {
+    flags[0] = {
+      ...flags[0],
+      text: phish.addr || "suspicious-sender@example.com",
+    };
+  }
+
+  return {
+    id: raw?.id || `sim-stage-${idx + 1}`,
+    legit: {
+      from: legit.from || "Trusted Sender",
+      addr: legit.addr || "sender@company.com",
+      subject: legit.subject || "Routine security update",
+      body: legit.body || "This is an example of a legitimate communication.",
+      safe: true,
+    },
+    phish: {
+      from: phish.from || "Suspicious Sender",
+      addr: phish.addr || "security-alert@fake-domain.tld",
+      subject: phish.subject || "Urgent security notice",
+      body: phish.body || "Review this suspicious message and identify red flags.",
+      flags,
+    },
+  };
+}
+
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 export function SimulatorPage({ showToast }) {
-  const { awardXP } = useUser();
+  const { awardXP, updateStreak } = useUser();
   const { user } = useAuth();
   const { callGemini, loading: aiLoading } = useGemini();
   const [mode, setMode] = useState("stages"); // "stages" | "neural"
@@ -58,14 +102,58 @@ export function SimulatorPage({ showToast }) {
   const [flagged, setFlagged] = useState(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [stagePool, setStagePool] = useState(() => SIM_STAGES.map(normalizeStage));
+  const [contentSource, setContentSource] = useState("local");
 
-  // Neural Lab State
-  const [emailInput, setEmailInput] = useState({ sender: "", body: "" });
-  const [urlInput, setUrlInput] = useState("");
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [analysisType, setAnalysisType] = useState(null); // "email" | "link"
+  useEffect(() => {
+    let mounted = true;
 
-  const stage = SIM_STAGES[stageIdx];
+    const loadScenarios = async () => {
+      try {
+        const remote = await getAdminSimScenarios();
+        const normalizedRemote = remote.map(normalizeStage).filter((stage) => stage?.phish?.flags?.length > 0);
+        if (mounted && normalizedRemote.length > 0) {
+          setStagePool(normalizedRemote);
+          setContentSource("backend");
+          setStageIdx(0);
+          setFlagged(new Set());
+          setSubmitted(false);
+          setRevealed(false);
+        } else if (mounted) {
+          setStagePool(SIM_STAGES.map(normalizeStage));
+          setContentSource("local");
+        }
+      } catch {
+        if (mounted) {
+          setStagePool(SIM_STAGES.map(normalizeStage));
+          setContentSource("local");
+        }
+      }
+    };
+
+    loadScenarios();
+    return () => { mounted = false; };
+  }, [user?.uid]);
+
+  // ── Sign-in gate ───────────────────────────────────────────────────────────
+  if (!user) {
+    return (
+      <div style={{ ...T.page, background: "transparent", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center", padding: 40, maxWidth: 460, background: "rgba(0,8,18,0.85)", border: "1px solid rgba(0,245,255,0.15)", borderRadius: 16, backdropFilter: "blur(20px)" }}>
+          <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>🎯</div>
+          <div style={{ fontFamily: "Orbitron, sans-serif", fontSize: "1.4rem", fontWeight: 800, marginBottom: 12, color: "#00f5ff" }}>Sign In to Run Simulation</div>
+          <p style={{ color: "var(--txt2)", fontSize: "0.9rem", lineHeight: 1.7, marginBottom: 28 }}>Your phishing detection score, XP, and streak are saved to your profile. Sign in to keep your progress.</p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <button style={{ ...T.btnHP, minWidth: 160 }} onClick={() => document.querySelector('.pg-login-btn')?.click?.()}>🔐 Sign In</button>
+            <button style={{ ...T.btnG }} onClick={signInGuest}>👤 Continue as Guest</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const totalStages = stagePool.length || 1;
+  const stage = stagePool[stageIdx % totalStages];
   const total = stage.phish.flags.length;
   const pct = Math.min(100, (flagged.size / total) * 100);
 
@@ -82,21 +170,42 @@ export function SimulatorPage({ showToast }) {
     setSubmitted(true);
     const found = stage.phish.flags.filter((f) => flagged.has(f.id)).length;
     const xpGain = Math.round((found / total) * 80);
-    awardXP(xpGain);
+    try {
+      await awardXP(xpGain);
+    } catch (e) {
+      console.warn("Failed to award XP:", e);
+    }
     if (user) {
-      await logSimulatorAttempt(user.uid, {
-        stageId: stage.id || stageIdx,
-        flagsFound: found,
-        totalFlags: total,
-        xpEarned: xpGain,
-        completed: found === total
-      });
+      try {
+        await logSimulatorAttempt({
+          uid: user.uid,
+          stageId: stage.id || stageIdx,
+          flagsFound: found,
+          totalFlags: total,
+          xpEarned: xpGain,
+          completed: found === total
+        });
+        await updateStreak();  // from UserContext
+        await logPlatformAction(user.uid, "SIMULATION_SUBMITTED", {
+          stageId: stage.id || stageIdx,
+          flagsFound: found,
+          totalFlags: total,
+          xpEarned: xpGain,
+          completed: found === total,
+        });
+      } catch (e) {
+        if (e.code === 'permission-denied') {
+          showToast("Warning: Progress not saved. Please verify your email to permanently save.", "inf");
+        } else {
+          console.warn("Failed to save progress:", e);
+        }
+      }
     }
     showToast(`${found}/${total} flags found! +${xpGain} XP`, found === total ? "ok" : "inf");
   };
 
   const nextStage = () => {
-    setStageIdx((s) => (s + 1) % SIM_STAGES.length);
+    setStageIdx((s) => (s + 1) % totalStages);
     setFlagged(new Set());
     setSubmitted(false);
     setRevealed(false);
@@ -148,9 +257,10 @@ export function SimulatorPage({ showToast }) {
   return (
     <div style={{ ...T.page, background: "transparent", minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       <style>{`
-          @media (max-width: 900px) {
+          @media (max-width: 768px) {
             .cards-grid { grid-template-columns: 1fr !important; }
-            .pg-container { padding: 80px 15px 60px !important; }
+            .pg-container { padding: 80px 10px 40px !important; }
+            .flex-mobile-col { flex-direction: column; width: 100%; }
           }
           @keyframes cyberBlink {
             0%, 100% { opacity: 1; }
@@ -158,22 +268,18 @@ export function SimulatorPage({ showToast }) {
           }
         `}</style>
 
-      <div style={{ position: "relative", zIndex: 2, padding: "80px 40px 60px" }} className="pg-container">
+      <div style={{ position: "relative", zIndex: 2, padding: "80px 20px 60px", maxWidth: 1200, margin: "0 auto" }} className="pg-container">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36, flexWrap: "wrap", gap: 20 }}>
-          <PageHeader label="SIMULATOR" title={mode === "stages" ? "Spot the Phishing" : "Neural Lab Analysis"} />
-          <div style={{ display: "flex", gap: 10 }}>
-            <button 
-              onClick={() => setMode("stages")} 
-              style={{ ...T.btnHS, borderColor: mode === "stages" ? "#00f5ff" : "rgba(255,255,255,0.1)", color: mode === "stages" ? "#00f5ff" : "var(--txt2)" }}
-            >
-              🎓 TRAINING STAGES
-            </button>
-            <button 
-              onClick={() => setMode("neural")} 
-              style={{ ...T.btnHS, borderColor: mode === "neural" ? "#00f5ff" : "rgba(255,255,255,0.1)", color: mode === "neural" ? "#d500f9" : "var(--txt2)" }}
-            >
-              📡 NEURAL LAB
-            </button>
+          <PageHeader label="SIMULATOR" title="Spot the Phishing" />
+          <div style={{ fontFamily: "Share Tech Mono, monospace", fontSize: ".72rem", color: "#00f5ff", border: "1px solid rgba(0,245,255,0.3)", borderRadius: 100, padding: "6px 12px" }}>
+            {contentSource === "backend" ? "BACKEND SCENARIOS" : "LOCAL SCENARIOS"}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+          <span style={{ fontFamily: "Share Tech Mono, monospace", fontSize: ".73rem", color: "var(--txt2)" }}>Stage {stageIdx + 1}/{totalStages}</span>
+          <div style={{ flex: 1, height: 6, background: "rgba(0,245,255,.1)", borderRadius: 100, overflow: "hidden" }}>
+            <div style={{ height: "100%", background: "linear-gradient(90deg,#00f5ff,#00ff9d)", width: `${pct}%`, transition: "width .6s" }} />
           </div>
         </div>
 
@@ -184,7 +290,10 @@ export function SimulatorPage({ showToast }) {
               <div style={{ flex: 1, height: 6, background: "rgba(0,245,255,.1)", borderRadius: 100, overflow: "hidden" }}>
                 <div style={{ height: "100%", background: "linear-gradient(90deg,#00f5ff,#00ff9d)", width: `${pct}%`, transition: "width .6s" }} />
               </div>
-              <span style={{ fontFamily: "Share Tech Mono, monospace", fontSize: ".73rem", color: "#00f5ff" }}>{flagged.size}/{total} Flags</span>
+              <div style={{ fontFamily: "Share Tech Mono, monospace", fontSize: ".72rem", color: "#9becc6", marginBottom: 8 }}>
+                Subject: {stage.legit.subject}
+              </div>
+              <p style={{ whiteSpace: "pre-wrap" }}>{stage.legit.body}</p>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }} className="cards-grid">
@@ -208,6 +317,10 @@ export function SimulatorPage({ showToast }) {
                   <PhishBody stage={stage} flagged={flagged} submitted={submitted} revealed={revealed} onToggle={toggleFlag} />
                 </div>
               </div>
+              <div style={{ fontFamily: "Share Tech Mono, monospace", fontSize: ".72rem", color: "#ff9ea8", marginBottom: 8 }}>
+                Subject: {stage.phish.subject}
+              </div>
+              <PhishBody stage={stage} flagged={flagged} submitted={submitted} revealed={revealed} onToggle={toggleFlag} />
             </div>
 
             <div style={{ display: "flex", gap: 12, marginTop: 24, justifyContent: "center", flexWrap: "wrap" }}>

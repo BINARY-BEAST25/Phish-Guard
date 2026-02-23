@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { BrowserRouter, Navigate, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { seedDatabase } from "./firebase/seed";
 
 import { GLOBAL_CSS } from "./styles/globalStyles";
@@ -17,8 +17,7 @@ import {
   ProfilePage, AILearningPage
 } from "./pages";
 import { LoginPage } from "./pages";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { UserProvider, useUser } from "./context/UserContext";
+import { AuthProvider, UserProvider, useAuth, useUser } from "./context";
 
 // ─── AMBIENT BACKGROUND ORBS ─────────────────────────────────────────────────
 const ORBS = [
@@ -29,23 +28,27 @@ const ORBS = [
 ];
 
 // ─── PWA INSTALL PROMPT ───────────────────────────────────────────────────────
-let deferredPrompt = null;
-window.addEventListener("beforeinstallprompt", (e) => {
-  e.preventDefault();
-  deferredPrompt = e;
-});
-
 function PWAInstallBanner() {
-  const [show, setShow] = useState(!!deferredPrompt);
-  if (!show) return null;
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  if (!deferredPrompt || !visible) return null;
 
   const install = async () => {
-    if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") deferredPrompt = null;
-    setShow(false);
+    if (outcome === "accepted") setDeferredPrompt(null);
   };
+
 
   return (
     <div className="pwa-banner" style={{
@@ -74,7 +77,7 @@ function PWAInstallBanner() {
           boxShadow: "0 0 15px rgba(0,245,255,0.4)",
           transition: "transform 0.2s"
         }} onMouseEnter={e => e.target.style.transform = 'scale(1.05)'} onMouseLeave={e => e.target.style.transform = 'scale(1)'}>INSTALL NOW</button>
-        <button onClick={() => setShow(false)} style={{
+        <button onClick={() => setVisible(false)} style={{
           background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)",
           borderRadius: 8, padding: "0 15px",
           cursor: "pointer", fontSize: "0.8rem", fontWeight: 600
@@ -93,7 +96,8 @@ function AdminRoute({ children }) {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (pass === "demo") {
+    const adminKey = import.meta.env.VITE_ADMIN_ACCESS_KEY;
+    if (adminKey && pass === adminKey) {
       setAuthed(true);
     } else {
       alert("Invalid admin password");
@@ -104,7 +108,7 @@ function AdminRoute({ children }) {
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
       <form onSubmit={handleLogin} style={{ background: "rgba(0,12,26,0.95)", padding: 40, border: "1px solid rgba(0,245,255,0.2)", borderRadius: 8, display: "flex", flexDirection: "column", gap: 20 }}>
         <h2 style={{ fontFamily: "Orbitron, sans-serif", color: "#00f5ff", textAlign: "center", margin: 0 }}>ADMIN ACCESS</h2>
-        <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Enter password (demo)" style={{ padding: 10, background: "rgba(255,255,255,0.05)", border: "1px solid #00f5ff", color: "white" }} />
+        <input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="Enter password" maxLength={32} style={{ padding: 10, background: "rgba(255,255,255,0.05)", border: "1px solid #00f5ff", color: "white" }} />
         <button type="submit" style={{ padding: 10, background: "#00f5ff", border: "none", color: "black", fontWeight: 'bold', cursor: 'pointer' }}>LOGIN</button>
       </form>
     </div>
@@ -136,12 +140,23 @@ function AppInner() {
 
   const { xp, level, addXP, xpPct, xpToNext,
     levelUpData, clearLevelUp } = useXPSystem(
-      profile?.xp ?? (user ? 1250 : 0), profile?.level ?? (user ? 1 : 1)
+      profile?.xp ?? 0, profile?.level ?? 1
     );
+
+  // Sync local XP system when Firestore profile changes (e.g., on login or after earning XP)
+  const prevXPRef = useRef(profile?.xp ?? 0);
+  useEffect(() => {
+    if (!profile) return;
+    const diff = (profile.xp ?? 0) - prevXPRef.current;
+    if (diff > 0) addXP(diff);
+    prevXPRef.current = profile.xp ?? 0;
+  }, [profile?.xp]);
+
   const { toast, showToast } = useToast();
   const { currentTip, nextTip } = useFinnTip();
 
-  const STREAK = profile?.streak ?? (user ? 5 : 0);
+  // Always read streak from live Firestore profile
+  const STREAK = profile?.streak ?? 0;
 
   const xpProps = { xp, level, xpPct, xpToNext, addXP };
   const toastProp = { showToast };
@@ -155,7 +170,9 @@ function AppInner() {
     "/gallery": "gallery",
     "/progress": "progress",
     "/admin": "admin",
-    "/ai-learning": "ai-learning",
+    "/admin-command-center": "admin",
+    "/ai-learning": "neural-academy",
+    "/neural-academy": "neural-academy",
     "/profile": "profile",
     "/about": "about",
     "/privacy": "privacy",
@@ -204,7 +221,7 @@ function AppInner() {
 
       {/* ── Navigation ── */}
       {/* Hide navbar on admin page for safety */}
-      {location.pathname !== "/admin" && (
+      {!["/admin", "/admin-command-center"].includes(location.pathname) && (
         <Navbar
           page={currentPage}
           setPage={setPage}
@@ -222,8 +239,10 @@ function AppInner() {
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/gallery" element={<GalleryPage {...toastProp} />} />
         <Route path="/progress" element={<ProgressPage {...xpProps} />} />
-        <Route path="/admin" element={<AdminRoute><AdminPage {...toastProp} /></AdminRoute>} />
-        <Route path="/ai-learning" element={<AILearningPage />} />
+        <Route path="/admin-command-center" element={<AdminPage {...toastProp} />} />
+        <Route path="/admin" element={<Navigate to="/admin-command-center" replace />} />
+        <Route path="/neural-academy" element={<AILearningPage />} />
+        <Route path="/ai-learning" element={<Navigate to="/neural-academy" replace />} />
         <Route path="/profile" element={<ProfilePage {...toastProp} />} />
         <Route path="/about" element={<InformationPage type="about" onBack={() => setPage("home")} />} />
         <Route path="/privacy" element={<InformationPage type="privacy" onBack={() => setPage("home")} />} />
@@ -234,7 +253,9 @@ function AppInner() {
       {/* ── Global overlays ── */}
       <Toast msg={toast.msg} type={toast.type} visible={toast.visible} />
       <LevelUpOverlay data={levelUpData} onClose={clearLevelUp} />
-      <Finn tip={currentTip} onClick={nextTip} />
+      {!["/neural-academy", "/ai-learning"].includes(location.pathname) && (
+        <Finn tip={currentTip} onClick={nextTip} />
+      )}
 
       {/* ── Login Modal ── */}
       {showLogin && <LoginPage onClose={() => setShowLogin(false)} />}

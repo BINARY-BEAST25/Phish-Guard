@@ -2,9 +2,30 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { T } from '../../styles';
 import { XPBar } from '../../components';
 import { QUESTIONS } from '../../constants';
-import { saveQuizResult } from '../../firebase';
+import { saveQuizResult, signInGuest, logPlatformAction, getAdminQuizQuestions } from '../../firebase';
 import { useUser, useAuth } from '../../context';
-import { useGemini } from '../../hooks/useGemini';
+
+const QUIZ_LIMIT = 15;
+
+function normalizeQuizQuestion(raw, idx) {
+  const opts = Array.isArray(raw?.opts) ? raw.opts.filter(Boolean).slice(0, 4) : [];
+  const safeOpts = opts.length >= 2 ? opts : ["Report and verify through official channel", "Click and respond quickly"];
+  const safeCorrect = Number.isInteger(raw?.correct) && raw.correct >= 0 && raw.correct < safeOpts.length ? raw.correct : 0;
+  const diffValue = String(raw?.diff || "easy").toLowerCase();
+  const diff = ["easy", "medium", "hard"].includes(diffValue) ? diffValue : "easy";
+
+  return {
+    id: raw?.id || `quiz-${idx + 1}`,
+    diff,
+    topic: raw?.topic || "Phishing Defense",
+    scenario: raw?.scenario || "You receive the following message:",
+    img: raw?.img || "Analyze this suspicious communication carefully before acting.",
+    q: raw?.q || `Question ${idx + 1}`,
+    opts: safeOpts,
+    correct: safeCorrect,
+    explain: raw?.explain || "Always verify requests through trusted channels before sharing data.",
+  };
+}
 
 // ─── CANVAS: MATRIX RAIN ─────────────────────────────────────────────────────
 
@@ -22,20 +43,21 @@ import { useGemini } from '../../hooks/useGemini';
 
 
 // ─── QUIZ PAGE ────────────────────────────────────────────────────────────────
-
-export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast }) {
-  const [quizMode, setQuizMode] = useState(null); // 'easy', 'hard', 'adaptive', 'dynamic'
+export function QuizPage({ xp, level, xpPct, xpToNext, addXP, showToast }) {
   const [qIdx, setQIdx] = useState(0);
   const [answered, setAnswered] = useState(false);
   const [selected, setSelected] = useState(null);
   const [timer, setTimer] = useState(30);
   const [history, setHistory] = useState([]);
-  const [activeQuestions, setActiveQuestions] = useState([]);
-  const [generating, setGenerating] = useState(false);
+  const [questionBank, setQuestionBank] = useState(() => QUESTIONS.map(normalizeQuizQuestion));
+  const [contentSource, setContentSource] = useState("local");
   const timerRef = useRef(null);
   const { callGemini } = useGemini();
 
-  const q = activeQuestions[qIdx % activeQuestions.length];
+  const totalQuestionsInBank = questionBank.length || 1;
+  const TOTAL_QUESTIONS = Math.min(QUIZ_LIMIT, totalQuestionsInBank);
+  const questionNumber = Math.min(history.length + 1, TOTAL_QUESTIONS);
+  const q = questionBank[qIdx % totalQuestionsInBank] || normalizeQuizQuestion({}, 0);
 
   // ── Timer ──────────────────────────────────────────────────────────────────
   const startTimer = useCallback(() => {
@@ -53,7 +75,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
   useEffect(() => {
     startTimer();
     return () => clearInterval(timerRef.current);
-  }, [qIdx, quizMode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [qIdx]);
 
   // ── Adaptive Logic ────────────────────────────────────────────────────────
   const [currentDiff, setCurrentDiff] = useState("easy");
@@ -93,51 +115,73 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
     }
   };
 
-  const startQuiz = async (mode) => {
-    setQuizMode(mode);
-    setHistory([]);
-    setQIdx(0);
-    setAnswered(false);
-    setSelected(null);
+    setCurrentDiff(newDiff);
+    setConsecutiveCorrect(newStreak);
 
-    if (mode === 'easy') {
-      setActiveQuestions(QUESTIONS.filter(q => q.diff === 'easy').sort(() => Math.random() - 0.5).slice(0, 10));
-    } else if (mode === 'hard') {
-      setActiveQuestions(QUESTIONS.filter(q => q.diff === 'hard' || q.diff === 'medium').sort(() => Math.random() - 0.5).slice(0, 10));
-    } else if (mode === 'adaptive') {
-      setActiveQuestions(QUESTIONS); // Use full pool
-      setCurrentDiff("easy");
-      setConsecutiveCorrect(0);
-    } else if (mode === 'dynamic') {
-      setGenerating(true);
-      try {
-        const prompt = `Generate 5 unique, technical phishing quiz questions. 
-        Return ONLY a JSON array of objects with this structure:
-        [{"diff": "hard", "topic": "...", "img": "Scenario description...", "q": "Question?", "opts": ["opt1", "opt2", "opt3", "opt4"], "correct": 0, "explain": "..."}]
-        IMPORTANT: Do not use markdown (e.g. **bold**, ## headers) in any of the text fields.
-        Ensure they are challenging and realistic.`;
-        
-        const response = await callGemini(prompt, "You are a cybersecurity expert. Output raw JSON only with NO markdown in content.");
-        // Clean response if it contains markdown code blocks
-        const jsonStr = response.replace(/```json|```/g, "").trim();
-        const customQs = JSON.parse(jsonStr).map(q => ({
-          ...q,
-          explain: q.explain.replace(/\*\*|\#\#/g, ""),
-          q: q.q.replace(/\*\*|\#\#/g, ""),
-          img: q.img.replace(/\*\*|\#\#/g, ""),
-        }));
-        setActiveQuestions(customQs);
-      } catch (err) {
-        console.error("Failed to generate dynamic questions:", err);
-        showToast("Neural link failed. Falling back to standard protocol.", "ng");
-        setActiveQuestions(QUESTIONS.sort(() => Math.random() - 0.5).slice(0, 5));
-      }
-      setGenerating(false);
+    // Find questions for new difficulty
+    const pool = questionBank.filter((item) => item.diff === newDiff);
+    if (pool.length === 0) {
+      return (prevIdx + 1) % totalQuestionsInBank;
     }
+
+    // Return a random one from that pool (excluding same if possible)
+    const randomIdx = Math.floor(Math.random() * pool.length);
+    const selectedQ = pool[randomIdx];
+    const selectedIdx = questionBank.findIndex((item) => item.id === selectedQ.id);
+    return selectedIdx >= 0 ? selectedIdx : (prevIdx + 1) % totalQuestionsInBank;
   };
 
-  const { awardXP } = useUser();
+  const { awardXP, updateStreak } = useUser();
   const { user } = useAuth();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadQuestionBank = async () => {
+      try {
+        const remote = await getAdminQuizQuestions();
+        const normalizedRemote = remote.map(normalizeQuizQuestion).filter((item) => item?.q && item?.opts?.length >= 2);
+        if (mounted && normalizedRemote.length > 0) {
+          setQuestionBank(normalizedRemote);
+          setContentSource("backend");
+          setQIdx(0);
+          setHistory([]);
+          setAnswered(false);
+          setSelected(null);
+          setCurrentDiff("easy");
+          setConsecutiveCorrect(0);
+        } else if (mounted) {
+          setQuestionBank(QUESTIONS.map(normalizeQuizQuestion));
+          setContentSource("local");
+        }
+      } catch {
+        if (mounted) {
+          setQuestionBank(QUESTIONS.map(normalizeQuizQuestion));
+          setContentSource("local");
+        }
+      }
+    };
+
+    loadQuestionBank();
+    return () => { mounted = false; };
+  }, [user?.uid]);
+
+  // ── Sign-in gate ────────────────────────────────────────────────────────────
+  if (!user) {
+    return (
+      <div style={{ ...T.page, background: "transparent", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center", padding: 40, maxWidth: 460, background: "rgba(0,8,18,0.85)", border: "1px solid rgba(0,245,255,0.15)", borderRadius: 16, backdropFilter: "blur(20px)" }}>
+          <div style={{ fontSize: "3.5rem", marginBottom: 16 }}>🧠</div>
+          <div style={{ fontFamily: "Orbitron, sans-serif", fontSize: "1.4rem", fontWeight: 800, marginBottom: 12, color: "#00f5ff" }}>Sign In to Train</div>
+          <p style={{ color: "var(--txt2)", fontSize: "0.9rem", lineHeight: 1.7, marginBottom: 28 }}>Your progress, XP, and streak are saved to your profile. Sign in or play as a guest to start training.</p>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <button style={{ ...T.btnHP, minWidth: 160 }} onClick={() => document.querySelector('.pg-login-btn')?.click?.()}>🔐 Sign In</button>
+            <button style={{ ...T.btnG }} onClick={signInGuest}>👤 Continue as Guest</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ── Answer ─────────────────────────────────────────────────────────────────
   const answer = async (idx) => {
@@ -150,24 +194,47 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
     const xpGain = correct
       ? (q.diff === "easy" ? 50 : q.diff === "medium" ? 100 : 150)
       : 10;
-
-    awardXP(xpGain);
-
-    if (user) {
-      await saveQuizResult(user.uid, {
-        questionId: q.id || qIdx,
-        correct,
-        xpEarned: xpGain,
-        topic: q.topic,
-        difficulty: q.diff
-      });
-    }
-
     setHistory((h) => [...h, { idx: qIdx, correct }]);
+
     showToast(
       correct ? `🎯 Correct! +${xpGain} XP earned!` : "❌ Not quite. Read the explanation below.",
       correct ? "ok" : "ng"
     );
+
+    try {
+      await awardXP(xpGain);
+    } catch (e) {
+      console.warn("Failed to award XP:", e);
+    }
+
+    if (user) {
+      try {
+        await saveQuizResult({
+          uid: user.uid,
+          questionId: q.id || qIdx,
+          correct,
+          xpEarned: xpGain,
+          topic: q.topic,
+          difficulty: q.diff,
+          score: correct ? 1 : 0,
+          total: 1,
+          category: q.topic || "general",
+        });
+        await updateStreak();  // from UserContext
+        await logPlatformAction(user.uid, "QUIZ_ANSWERED", {
+          questionId: q.id || qIdx,
+          correct,
+          xpEarned: xpGain,
+          difficulty: q.diff,
+        });
+      } catch (e) {
+        if (e.code === 'permission-denied') {
+          showToast("Warning: Progress not saved. Please verify your email to permanently save.", "inf");
+        } else {
+          console.warn("Failed to save progress:", e);
+        }
+      }
+    }
   };
 
   // ── Next question ──────────────────────────────────────────────────────────
@@ -178,12 +245,12 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
       setQuizMode(null);
       setQIdx(0); setHistory([]); setAnswered(false); setSelected(null);
     } else {
-      if (quizMode === 'adaptive') {
-        const nextQIdx = getNextQuestion(qIdx, history[history.length - 1].correct);
-        setQIdx(nextQIdx);
-      } else {
-        setQIdx(prev => prev + 1);
-      }
+      const lastAttempt = history[history.length - 1];
+      const wasCorrect = typeof lastAttempt?.correct === "boolean"
+        ? lastAttempt.correct
+        : selected === q.correct;
+      const nextQIdx = getNextQuestion(qIdx, Boolean(wasCorrect));
+      setQIdx(nextQIdx);
       setAnswered(false);
       setSelected(null);
     }
@@ -259,13 +326,13 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
       `}</style>
 
       {/* ── Page content ── */}
-      <div style={{ position: "relative", zIndex: 2, maxWidth: 880, margin: "0 auto", padding: "80px 24px 60px" }}>
+      <div className="pg-container" style={{ position: "relative", zIndex: 2, maxWidth: 880, margin: "0 auto", padding: "80px 24px 60px" }}>
 
         {/* ── Top bar ── */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <span style={{ fontFamily: "Share Tech Mono, monospace", fontSize: ".78rem", color: "var(--txt2)" }}>
-              Question {history.length + 1} of {currentTotal}
+              Question {questionNumber} of {TOTAL_QUESTIONS}
             </span>
             <span style={{
               padding: "4px 12px", borderRadius: 100,
@@ -274,13 +341,19 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
             }}>
               {q?.diff?.toUpperCase() || "DYNAMIC"}
             </span>
+            <span style={{
+              padding: "4px 10px",
+              borderRadius: 100,
+              fontFamily: "Share Tech Mono, monospace",
+              fontSize: ".66rem",
+              border: "1px solid rgba(0,245,255,0.3)",
+              color: "#00f5ff",
+            }}>
+              {contentSource === "backend" ? "BACKEND CONTENT" : "LOCAL CONTENT"}
+            </span>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <button style={T.btnG} onClick={() => setQuizMode(null)}>
-              ⬅️ Back
-            </button>
-
             {/* SVG timer ring */}
             <div style={{ position: "relative", width: 48, height: 48 }}>
               <svg
@@ -321,7 +394,11 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
             fontFamily: "Share Tech Mono, monospace", fontSize: ".78rem",
             color: "var(--txt2)", letterSpacing: 1, textTransform: "uppercase", marginBottom: 14,
           }}>
-            {q?.topic?.toUpperCase() || "PHISHING"} · SCENARIO {history.length + 1}
+            {q.topic.toUpperCase()} · SCENARIO {questionNumber}
+          </div>
+
+          <div style={{ color: "#00f5ff", fontFamily: "Share Tech Mono, monospace", fontSize: ".75rem", marginBottom: 10 }}>
+            {q.scenario}
           </div>
 
           {/* Scenario block */}
@@ -342,8 +419,8 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
           </div>
 
           {/* Options */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 13 }}>
-            {q?.opts?.map((opt, i) => {
+          <div className="quiz-options-grid" style={{ display: "grid", gap: 14 }}>
+            {q.opts.map((o, i) => {
               let border = "1px solid rgba(0,245,255,.08)";
               let bg = "rgba(0,8,18,0.8)";
               let color = "#e0f7fa";
@@ -367,7 +444,7 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
                     transition: "all .2s", position: "relative",
                   }}
                 >
-                  {opt}
+                  {o}
                   {answered && i === q.correct && (
                     <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: "#00ff9d", fontWeight: 700 }}>✓</span>
                   )}
@@ -393,11 +470,11 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
 
           {/* Progress dots */}
           <div style={{ display: "flex", gap: 5, marginTop: 22 }}>
-            {Array.from({ length: currentTotal }).map((_, i) => {
+            {Array.from({ length: TOTAL_QUESTIONS }).map((_, i) => {
+              const activeDotIdx = Math.max(0, questionNumber - 1);
               const h = history[i];
-              const isCurrent = i === history.length;
-              const bg = h ? (h.correct ? "#00f5ff" : "#ff1744") : isCurrent ? "#00ff9d" : "rgba(255,255,255,.1)";
-              const shd = h ? (h.correct ? "0 0 6px #00f5ff" : "0 0 6px #ff1744") : isCurrent ? "0 0 8px #00ff9d" : "none";
+              const bg = h ? (h.correct ? "#00f5ff" : "#ff1744") : i === activeDotIdx ? "#00ff9d" : "rgba(255,255,255,.1)";
+              const shd = h ? (h.correct ? "0 0 6px #00f5ff" : "0 0 6px #ff1744") : i === activeDotIdx ? "0 0 8px #00ff9d" : "none";
               return (
                 <div key={i} style={{
                   flex: 1, height: 4, borderRadius: 2,
@@ -414,6 +491,15 @@ export function QuizPage({ xp, level, xpPct, xpToNext, addXP, setPage, showToast
           )}
         </div>
       </div>
+      <style>{`
+        .quiz-options-grid {
+          grid-template-columns: 1fr 1fr;
+        }
+        @media (max-width: 768px) {
+          .quiz-options-grid { grid-template-columns: 1fr; }
+          .pg-container { padding: 40px 10px 40px !important; }
+        }
+      `}</style>
     </div>
   );
 }
