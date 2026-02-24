@@ -1,0 +1,86 @@
+﻿rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // User profile documents
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+
+    // Public leaderboard snapshots
+    match /leaderboard/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+
+    // Quiz attempt analytics
+    match /quizResults/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Simulator attempt analytics
+    match /simulatorLogs/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Platform activity logs
+    match /activity_logs/{docId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Legacy fallback collections kept for compatibility
+    match /quizzes/{quizId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /logs/{logId} {
+      allow read: if false;
+      allow write: if isSignedIn();
+    }
+
+    // Intel gallery
+    match /gallery/{itemId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // User feedback
+    match /feedback/{docId} {
+      allow read: if false;
+      allow write: if isSignedIn();
+    }
+
+    // Classroom groups
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // Admin-managed content sources
+    match /quizQuestions/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    match /simScenarios/{docId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+  }
+}

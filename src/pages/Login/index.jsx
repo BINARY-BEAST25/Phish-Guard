@@ -1,0 +1,186 @@
+import { useState } from "react";
+import { useAuth } from '../../context/AuthContext';
+import { T } from '../../styles';
+
+export default function LoginPage({ onClose }) {
+    const { signInWithGoogle, signInEmail, registerEmail, resetPassword, signInGuest } = useAuth();
+
+    const [mode, setMode] = useState("login");   // "login" | "register" | "reset"
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [name, setName] = useState("");
+    const [error, setError] = useState("");
+    const [msg, setMsg] = useState("");
+    const [busy, setBusy] = useState(false);
+
+    const handle = async (fn) => {
+        setError(""); setMsg(""); setBusy(true);
+        try { await fn(); if (onClose) onClose(); }
+        catch (e) {
+            console.error("Auth Error:", e.code, e.message);
+            if (e.code === "auth/account-exists-with-different-credential") {
+                setError("An account already exists with this email using a different login method (e.g. Google). Please use that method to sign in.");
+            } else if (e.code === "auth/email-already-in-use") {
+                setError("This email is already registered. Please sign in instead.");
+            } else if (e.code === "auth/wrong-password" || e.code === "auth/user-not-found" || e.code === "auth/invalid-credential") {
+                setError("Invalid email or password. Please try again.");
+            } else if (e.code === "auth/weak-password") {
+                setError("Password is too weak. Please use at least 6 characters.");
+            } else if (e.code === "auth/network-request-failed") {
+                setError("Network error while contacting Firebase. Check connection and try again.");
+            } else if (String(e.message || "").includes("Pending promise was never set")) {
+                setError("Sign-in popup failed to complete. Please retry and allow the redirect flow.");
+            } else {
+                setError(e.message);
+            }
+        }
+        finally { setBusy(false); }
+    };
+
+    const handleGoogle = () => handle(signInWithGoogle);
+    const handleSignIn = (e) => { e.preventDefault(); handle(() => signInEmail(email, password)); };
+    const handleRegister = (e) => { e.preventDefault(); handle(() => registerEmail(email, password, name)); };
+    const handleGuest = () => handle(signInGuest);
+    const handleReset = async (e) => {
+        e.preventDefault(); setError(""); setBusy(true);
+        try { await resetPassword(email); setMsg("Reset link sent – check your inbox!"); }
+        catch (e) { setError(e.message); }
+        finally { setBusy(false); }
+    };
+
+    return (
+        <div
+            onClick={(e) => e.target === e.currentTarget && onClose?.()}
+            style={{
+                position: "fixed", inset: 0, zIndex: 9000,
+                background: "rgba(0,0,0,0.85)", backdropFilter: "blur(10px)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: "1rem",
+            }}
+        >
+            <style>{`
+              @keyframes loginPop { from{opacity:0;transform:scale(.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
+              @media (max-width: 500px) {
+                .login-card { padding: 24px !important; }
+              }
+            `}</style>
+            <div
+                className="login-card"
+                style={{
+                    background: "linear-gradient(145deg,#0a0e1a,#0d1525)",
+                    border: "1px solid rgba(0,245,255,0.2)",
+                    borderRadius: 20, padding: 40, width: "100%", maxWidth: 420,
+                    boxShadow: "0 0 60px rgba(0,245,255,0.15)",
+                    position: "relative", animation: "loginPop 0.4s ease both"
+                }}
+            >
+                <button
+                    onClick={onClose}
+                    aria-label="Close authentication"
+                    style={{ position: "absolute", top: 16, right: 16, background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: "1.4rem", cursor: "pointer" }}
+                >
+                    ✕
+                </button>
+
+                <div style={{ textAlign: "center", marginBottom: 24 }}>
+                    <div style={{ fontSize: "2.2rem", marginBottom: 8 }}>🛡️</div>
+                    <h2 style={{ margin: 0, fontFamily: "Orbitron, sans-serif", color: "#00f5ff", fontSize: "1.5rem" }}>Authentication</h2>
+                    <p style={{ color: "var(--txt2)", marginTop: 4, fontSize: "0.85rem", fontFamily: "Share Tech Mono" }}>PHISH-GUARD TERMINAL v1.0</p>
+                </div>
+
+                {error && (
+                    <div style={{ color: "#ff4757", background: "rgba(255,71,87,0.1)", padding: 12, borderRadius: 8, marginBottom: 16, fontSize: "0.8rem", border: "1px solid rgba(255,71,87,0.2)" }}>
+                        <strong>AUTH_ERROR:</strong> {error}
+                        {error.includes("auth/operation-not-allowed") && <div style={{ marginTop: 8, color: "#00f5ff", fontSize: "0.7rem" }}>Tip: Enable Google Auth in Firebase Console!</div>}
+                    </div>
+                )}
+                {msg && <p style={{ color: "#00f5ff", background: "rgba(0,245,255,0.1)", padding: 10, borderRadius: 8, marginBottom: 16, fontSize: "0.85rem" }}>{msg}</p>}
+
+                {mode === "login" && (
+                    <>
+                        <button onClick={handleGoogle} disabled={busy} style={{ ...T.btnP, width: "100%", marginBottom: 12, background: "#fff", color: "#000", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" width="18" style={{ marginRight: 10 }} alt="google" />
+                            Sign in with Google
+                        </button>
+                        <button onClick={handleGuest} disabled={busy} style={{ ...T.btnG, width: "100%", marginBottom: 16 }}>
+                            ⚡ Continue as Guest
+                        </button>
+                        <div style={{ textAlign: "center", color: "rgba(255,255,255,0.2)", margin: "12px 0", fontSize: "0.75rem" }}>— OR —</div>
+                        <form onSubmit={handleSignIn}>
+                            <div style={{ marginBottom: 12 }}>
+                                <label htmlFor="login-email" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
+                                    {"// EMAIL_ADDRESS"}
+                                </label>
+                                <input id="login-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="agent@phishguard.gov" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                            </div>
+                            <div style={{ marginBottom: 6 }}>
+                                <label htmlFor="login-password" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
+                                    {"// ACCESS_KEY"}
+                                </label>
+                                <input id="login-password" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="password" placeholder="••••••••" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required />
+                            </div>
+                            <div style={{ textAlign: "right", marginBottom: 16 }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setMode("reset")}
+                                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--txt2)", fontSize: "0.75rem", fontFamily: "Share Tech Mono", textDecoration: "underline" }}
+                                >
+                                    Forgot Password?
+                                </button>
+                            </div>
+                            <button type="submit" disabled={busy} style={{ ...T.btnP, width: "100%" }}>{busy ? "Authenticating..." : "Sign In"}</button>
+                        </form>
+                        <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem", color: "var(--txt2)" }}>
+                            New recruit? <button type="button" onClick={() => setMode("register")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#00f5ff", fontSize: "inherit" }}>Create Account</button>
+                        </div>
+                    </>
+                )}
+
+                {mode === "reset" && (
+                    <>
+                        <p style={{ color: "var(--txt2)", fontSize: "0.85rem", marginBottom: 20, textAlign: "center" }}>Enter your email and we&apos;ll send a transmission to reset your credentials.</p>
+                        <form onSubmit={handleReset}>
+                            <div style={{ marginBottom: 16 }}>
+                                <label htmlFor="reset-email" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
+                                    {"// RECOVERY_EMAIL"}
+                                </label>
+                                <input id="reset-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="Enter your email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                            </div>
+                            <button type="submit" disabled={busy} style={{ ...T.btnP, width: "100%" }}>{busy ? "Transmitting..." : "Send Reset Link"}</button>
+                        </form>
+                        <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem", color: "var(--txt2)" }}>
+                            Back to <button type="button" onClick={() => setMode("login")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#00f5ff", fontSize: "inherit" }}>Sign In</button>
+                        </div>
+                    </>
+                )}
+
+                {mode === "register" && (
+                    <form onSubmit={handleRegister}>
+                        <div style={{ marginBottom: 12 }}>
+                            <label htmlFor="reg-name" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
+                                {"// FULL_NAME"}
+                            </label>
+                            <input id="reg-name" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="text" placeholder="e.g. Agent Smith" autoComplete="name" value={name} onChange={e => setName(e.target.value)} required />
+                        </div>
+                        <div style={{ marginBottom: 12 }}>
+                            <label htmlFor="reg-email" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
+                                {"// EMAIL_ADDRESS"}
+                            </label>
+                            <input id="reg-email" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="email" placeholder="Enter your email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                        </div>
+                        <div style={{ marginBottom: 16 }}>
+                            <label htmlFor="reg-password" style={{ display: "block", color: "var(--txt2)", fontSize: "0.7rem", marginBottom: 6, fontFamily: "Share Tech Mono", letterSpacing: "0.05em" }}>
+                                {"// NEW_ACCESS_KEY"}
+                            </label>
+                            <input id="reg-password" style={{ width: "100%", padding: 12, borderRadius: 8, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff" }} type="password" placeholder="Min 6 characters" autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} minLength={6} required />
+                        </div>
+                        <button type="submit" disabled={busy} style={{ ...T.btnP, width: "100%" }}>{busy ? "Initializing..." : "Register Now"}</button>
+                        <div style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem", color: "var(--txt2)" }}>
+                            Already guarded? <button type="button" onClick={() => setMode("login")} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#00f5ff", fontSize: "inherit" }}>Sign In</button>
+                        </div>
+                    </form>
+                )}
+            </div>
+        </div>
+    );
+}
