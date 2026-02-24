@@ -277,14 +277,14 @@ export function SimulatorPage({ showToast }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36, flexWrap: "wrap", gap: 20 }}>
           <PageHeader label="SIMULATOR" title={mode === "stages" ? "Spot the Phishing" : "Neural Lab Analysis"} />
           <div style={{ display: "flex", gap: 10 }}>
-            <button 
-              onClick={() => setMode("stages")} 
+            <button
+              onClick={() => setMode("stages")}
               style={{ ...T.btnHS, borderColor: mode === "stages" ? "#00f5ff" : "rgba(255,255,255,0.1)", color: mode === "stages" ? "#00f5ff" : "var(--txt2)" }}
             >
               🎓 TRAINING STAGES
             </button>
-            <button 
-              onClick={() => setMode("neural")} 
+            <button
+              onClick={() => setMode("neural")}
               style={{ ...T.btnHS, borderColor: mode === "neural" ? "#00f5ff" : "rgba(255,255,255,0.1)", color: mode === "neural" ? "#d500f9" : "var(--txt2)" }}
             >
               📡 NEURAL LAB
@@ -347,18 +347,18 @@ export function SimulatorPage({ showToast }) {
               <div style={{ ...T.card, padding: 25 }}>
                 <div style={{ ...T.secLbl, marginBottom: 20 }}>// DYNAMIC EMAIL ANALYZER</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 15 }}>
-                  <input 
+                  <input
                     placeholder="Sender Address (e.g., support@m-amazon.com)"
                     style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", padding: "12px 15px", borderRadius: 4, fontFamily: "Share Tech Mono" }}
                     value={emailInput.sender}
-                    onChange={e => setEmailInput({...emailInput, sender: e.target.value})}
+                    onChange={e => setEmailInput({ ...emailInput, sender: e.target.value })}
                   />
-                  <textarea 
+                  <textarea
                     placeholder="Paste the suspicious email body here..."
                     rows={8}
                     style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", padding: "12px 15px", borderRadius: 4, fontFamily: "inherit", resize: "none" }}
                     value={emailInput.body}
-                    onChange={e => setEmailInput({...emailInput, body: e.target.value})}
+                    onChange={e => setEmailInput({ ...emailInput, body: e.target.value })}
                   />
                   <button onClick={handleAnalyzeEmail} disabled={aiLoading} style={T.btnHP}>
                     {aiLoading && analysisType === "email" ? "ANALYZING NEURAL PATTERNS..." : "ANALYZE EMAIL"}
@@ -369,7 +369,7 @@ export function SimulatorPage({ showToast }) {
               <div style={{ ...T.card, padding: 25 }}>
                 <div style={{ ...T.secLbl, marginBottom: 20 }}>// NEURAL LINK SCANNER</div>
                 <div style={{ display: "flex", gap: 10 }}>
-                  <input 
+                  <input
                     placeholder="Enter URL to scan..."
                     style={{ flex: 1, background: "rgba(0,0,0,0.3)", border: "1px solid rgba(0,245,255,0.2)", color: "#fff", padding: "12px 15px", borderRadius: 4, fontFamily: "Share Tech Mono" }}
                     value={urlInput}
@@ -392,7 +392,7 @@ export function SimulatorPage({ showToast }) {
               <div style={{ flex: 1, overflowY: "auto", padding: "0 20px 20px", scrollbarWidth: "thin", scrollbarColor: "rgba(213,0,249,0.3) transparent" }}>
                 {!analysisResult && !aiLoading ? (
                   <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", color: "var(--txt2)", fontFamily: "Share Tech Mono", fontSize: "0.85rem", opacity: 0.6 }}>
-                    Awaiting intelligence input...<br/>Initialize scan to begin.
+                    Awaiting intelligence input...<br />Initialize scan to begin.
                   </div>
                 ) : (
                   <>
@@ -402,13 +402,26 @@ export function SimulatorPage({ showToast }) {
                       <div style={{ fontFamily: "Share Tech Mono", fontSize: "1rem", color: "#fff", fontWeight: "bold" }}>
                         {aiLoading ? (
                           <span style={{ animation: "cyberBlink 1.5s infinite ease-in-out" }}>SCANNING...</span>
-                        ) : (
-                          analysisResult?.toLowerCase().includes("🔴") || analysisResult?.toLowerCase().includes("phish") || analysisResult?.toLowerCase().includes("malicious") 
-                          ? "🔴 THREAT_DETECTED" 
-                          : analysisResult?.toLowerCase().includes("🟢") || analysisResult?.toLowerCase().includes("safe") || analysisResult?.toLowerCase().includes("genuine")
-                          ? "🟢 VERIFIED_SAFE"
-                          : "🟡 UNKNOWN_ORIGIN"
-                        )}
+                        ) : (() => {
+                          const lower = analysisResult?.toLowerCase() || "";
+                          // Check for SAFE indicators (higher priority)
+                          const isSafe = lower.includes("🟢") ||
+                            lower.includes("legitimate") ||
+                            lower.includes("genuine") ||
+                            lower.includes("safe") ||
+                            lower.match(/not\s+(a\s+)?(phish|malicious|threat|suspicious)/i) ||
+                            lower.match(/appears?\s+(to\s+be\s+)?(legitimate|safe|genuine)/i);
+
+                          // Check for THREAT indicators
+                          const isThreat = lower.includes("🔴") ||
+                            lower.match(/(is|likely|appears?)\s+(a\s+)?(phish|malicious|threat)/i) ||
+                            lower.match(/\b(high|critical|medium)\s+risk/i) ||
+                            lower.match(/verdict\s*:?\s*(phish|malicious|suspicious)/i);
+
+                          if (isSafe && !isThreat) return "🟢 VERIFIED_SAFE";
+                          if (isThreat) return "🔴 THREAT_DETECTED";
+                          return "🟡 REVIEW_REQUIRED";
+                        })()}
                       </div>
                     </div>
 
@@ -418,8 +431,8 @@ export function SimulatorPage({ showToast }) {
                       <div style={{ fontFamily: "Share Tech Mono", fontSize: "0.85rem", lineHeight: 1.6, color: "#e0f7fa", whiteSpace: "pre-wrap" }}>
                         {aiLoading ? (
                           <div style={{ color: "#d500f9", animation: "cyberBlink 1.5s infinite ease-in-out" }}>
-                            &gt; ACCESSING_NEURAL_NODES...<br/>
-                            &gt; DECODING_HEURISTICS...<br/>
+                            &gt; ACCESSING_NEURAL_NODES...<br />
+                            &gt; DECODING_HEURISTICS...<br />
                             &gt; CALCULATING_RISK_VECTORS...
                           </div>
                         ) : analysisResult}
