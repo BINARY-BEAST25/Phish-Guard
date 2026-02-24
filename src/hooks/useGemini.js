@@ -20,14 +20,18 @@ export function useGemini() {
         setLoading(true);
         setError(null);
 
-        // High-Fidelity Sequence for maximum reliability
+        // Allowed text-model fallback sequence (Gemini 2/2.5/3 family only)
         const trialSequence = [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash-lite",
             "gemini-2.0-flash",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
-            "gemini-3.1-pro-preview",
-            "gemini-3-pro-preview",
-            "gemini-3-flash-preview",
+            "gemini-2.0-flash-exp",
+            "gemini-2.0-flash-lite",
+            "gemini-2.0-pro-exp",
+            "gemini-3-flash",
+            "gemini-3-pro",
+            "gemini-3.1-pro",
         ];
 
         const fullPrompt = systemContext 

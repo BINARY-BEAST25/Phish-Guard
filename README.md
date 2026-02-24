@@ -66,6 +66,10 @@ VITE_GEMINI_API_KEY=your_gemini_api_key_here
 VITE_ADMIN_ACCESS_KEY=your_admin_access_key_here
 ```
 
+**🧠 Gemini API Setup**: Get your free API key at [Google AI Studio](https://aistudio.google.com/app/apikey). For detailed setup instructions, see [docs/GEMINI_API_SETUP.md](docs/GEMINI_API_SETUP.md).
+
+**⚡ API Usage Optimization**: The platform implements intelligent caching, rate limiting, and batch processing to minimize API calls. See [docs/API_USAGE_OPTIMIZATION.md](docs/API_USAGE_OPTIMIZATION.md) for details.
+
 ### 3. Launch Platform
 ```bash
 npm run dev
