@@ -55,6 +55,13 @@ async function safeFirestoreWrite(op, label = "firestore write") {
     }
 }
 
+function getLocalDateKey(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // USERS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -76,6 +83,7 @@ export async function createOrUpdateUser(firebaseUser) {
             xp: 0,
             level: 1,
             streak: 0,
+            lastStreakDate: null,
             quizAttempts: 0,
             quizCorrect: 0,
             simulationsDone: 0,
@@ -346,7 +354,8 @@ export async function getUserGlobalRankStats(uid) {
 
 /**
  * Update daily streak for a user.
- * Increments streak if last active was yesterday, resets if > 1 day gap.
+ * Uses lastStreakDate to avoid interference from other writes that touch lastActive.
+ * Increments on consecutive days, keeps same value on same day, resets to 1 after gaps.
  * Returns the new streak count.
  */
 export async function updateStreak(uid) {
@@ -356,19 +365,47 @@ export async function updateStreak(uid) {
 
     const data = snap.data();
     const now = new Date();
-    const lastActive = data.lastActive?.toDate?.() ?? new Date(0);
+    const todayKey = getLocalDateKey(now);
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = getLocalDateKey(yesterday);
 
-    const daysSince = Math.floor((now - lastActive) / (1000 * 60 * 60 * 24));
-    let newStreak = data.streak ?? 0;
+    const currentStreak = Number.isFinite(data.streak) ? data.streak : 0;
+    const lastStreakDate = typeof data.lastStreakDate === "string" ? data.lastStreakDate : null;
+    let newStreak = currentStreak;
 
-    if (daysSince === 1) {
-        newStreak = newStreak + 1;
-    } else if (daysSince > 1) {
-        newStreak = 1; // reset
+    if (!lastStreakDate) {
+        // Backward-compat path: users created before lastStreakDate existed.
+        if (currentStreak <= 0) {
+            newStreak = 1;
+        } else {
+            const lastActiveDate = data.lastActive?.toDate?.();
+            if (!lastActiveDate) {
+                newStreak = 1;
+            } else {
+                const lastActiveKey = getLocalDateKey(lastActiveDate);
+                if (lastActiveKey === todayKey) {
+                    newStreak = currentStreak;
+                } else if (lastActiveKey === yesterdayKey) {
+                    newStreak = currentStreak + 1;
+                } else {
+                    newStreak = 1;
+                }
+            }
+        }
+    } else if (lastStreakDate === todayKey) {
+        newStreak = currentStreak;
+    } else if (lastStreakDate === yesterdayKey) {
+        newStreak = currentStreak + 1;
+    } else {
+        newStreak = 1;
     }
-    // daysSince === 0 means same day — don't change streak
 
-    await updateDoc(ref, { streak: newStreak, lastActive: serverTimestamp() });
+    await updateDoc(ref, {
+        streak: newStreak,
+        lastStreakDate: todayKey,
+        lastActive: serverTimestamp(),
+    });
 
     // Mirror streak to leaderboard (non-blocking)
     await safeFirestoreWrite(
