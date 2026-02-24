@@ -6,11 +6,11 @@
  * Usage:
  *   const { profile, awardXP, loading } = useUser();
  */
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useAuth } from "./AuthContext";
+import { useEffect, useState, useCallback } from "react";
+import { useAuth } from "./useAuth";
 import { getUserProfile, awardXP as dbAwardXP, unlockBadge, updateStreak as dbUpdateStreak } from "../firebase/db";
+import { UserContext } from "./userContextStore";
 
-const UserContext = createContext(null);
 
 export function UserProvider({ children }) {
     const { user } = useAuth();
@@ -64,10 +64,4 @@ export function UserProvider({ children }) {
     const value = { profile, loading, awardXP, updateStreak, refreshProfile, earnBadge };
 
     return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
-}
-
-export function useUser() {
-    const ctx = useContext(UserContext);
-    if (!ctx) throw new Error("useUser must be used within a UserProvider");
-    return ctx;
 }

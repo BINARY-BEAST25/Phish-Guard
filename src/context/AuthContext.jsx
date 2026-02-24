@@ -6,7 +6,7 @@
  * Usage:
  *   const { user, loading, signInWithGoogle, signOutUser } = useAuth();
  */
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
     onAuthChange,
     completeRedirectSignIn,
@@ -21,22 +21,7 @@ import {
     linkEmail,
     deleteAccount,
 } from "../firebase/auth";
-
-const AuthContext = createContext(null);
-const DEV_AUTH_FALLBACK = {
-    user: null,
-    loading: true,
-    signInWithGoogle: async () => null,
-    signInEmail: async () => null,
-    registerEmail: async () => null,
-    signOutUser: async () => null,
-    resetPassword: async () => null,
-    signInGuest: async () => null,
-    verifyEmail: async () => null,
-    linkGoogle: async () => null,
-    linkEmail: async () => null,
-    deleteAccount: async () => null,
-};
+import { AuthContext } from "./authContextStore";
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -75,14 +60,4 @@ export function AuthProvider({ children }) {
     if (loading) return null;
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-/** Returns the current auth context. Must be called inside <AuthProvider>. */
-export function useAuth() {
-    const ctx = useContext(AuthContext);
-    if (!ctx) {
-        if (import.meta.env.DEV) return DEV_AUTH_FALLBACK;
-        throw new Error("useAuth must be used within an AuthProvider");
-    }
-    return ctx;
 }

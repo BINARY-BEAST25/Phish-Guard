@@ -1,6 +1,6 @@
 import './home.css';
 import { logPlatformAction } from '../../firebase';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../context';
 
 import {
   EmailMock,
